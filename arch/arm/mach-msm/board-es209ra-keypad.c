@@ -104,9 +104,9 @@ static struct gpio_event_matrix_info es209ra_matrix_info = {
 	.noutputs	= ARRAY_SIZE(es209ra_row_gpios),
 	.ninputs	= ARRAY_SIZE(es209ra_col_gpios),
 /* SEMC:SYS: DMS DMS00705986 (Chage to 500ms) start */	
-	.settle_time.tv.nsec = 500 * NSEC_PER_USEC,
+	.settle_time.tv_nsec = 500 * NSEC_PER_USEC,
 /* SEMC:SYS: DMS DMS00705986 end */ 
-	.poll_time.tv.nsec = 20 * NSEC_PER_MSEC,
+	.poll_time.tv_nsec = 20 * NSEC_PER_MSEC,
 /* SEMC:SYS  DMS00655868  Keypad driver to support different key push at a time - start  */
         .flags          = GPIOKPF_LEVEL_TRIGGERED_IRQ | GPIOKPF_PRINT_UNMAPPED_KEYS /*| GPIOKPF_PRINT_MAPPED_KEYS*/
 /* SEMC:SYS  DMS00655868  Keypad driver to support different key push at a time - end  */

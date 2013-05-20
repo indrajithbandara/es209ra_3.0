@@ -1733,9 +1733,9 @@ static struct platform_device *devices[] __initdata = {
 	&msm_device_nand,
 	&msm_device_i2c,
 	&qsd_device_spi,
+#ifdef CONFIG_USB_ANDROID
 	&rndis_device,
 	&usb_mass_storage_device,
-#ifdef CONFIG_USB_ANDROID
 	&android_usb_device,
 #endif
 	&msm_device_tssc,
