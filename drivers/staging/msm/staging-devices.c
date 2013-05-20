@@ -105,12 +105,12 @@ static int msm_fb_detect_panel(const char *name)
 {
 	int ret = -EPERM;
 
-	if (machine_is_qsd8x50_ffa()) {
+	if (machine_is_qsd8x50_ffa() || machine_is_qsd8x50a_ffa()) {
 		if (!strncmp(name, "mddi_toshiba_wvga_pt", 20))
 			ret = 0;
 		else
 			ret = -ENODEV;
-	} else if ((machine_is_qsd8x50_surf()) {
+	} else if ((machine_is_qsd8x50_surf() || machine_is_qsd8x50a_surf())
 			&& !strcmp(name, "lcdc_external"))
 		ret = 0;
 	}
