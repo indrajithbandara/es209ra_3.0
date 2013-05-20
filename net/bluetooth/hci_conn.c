@@ -100,18 +100,6 @@ struct hci_conn *hci_le_connect(struct hci_dev *hdev, __u16 pkt_type,
 	le->type = LE_LINK;
 
 	memset(&cp, 0, sizeof(cp));
-	if (l2cap_sock_le_params_valid(le_params)) {
-		cp.supervision_timeout =
-				cpu_to_le16(le_params->supervision_timeout);
-		cp.scan_interval = cpu_to_le16(le_params->scan_interval);
-		cp.scan_window = cpu_to_le16(le_params->scan_window);
-		cp.conn_interval_min = cpu_to_le16(le_params->interval_min);
-		cp.conn_interval_max = cpu_to_le16(le_params->interval_max);
-		cp.conn_latency = cpu_to_le16(le_params->latency);
-		cp.min_ce_len = cpu_to_le16(le_params->min_ce_len);
-		cp.max_ce_len = cpu_to_le16(le_params->max_ce_len);
-		le->conn_timeout = le_params->conn_timeout;
-	} else {
 		cp.supervision_timeout = cpu_to_le16(BT_LE_SUP_TO_DEFAULT);
 		cp.scan_interval = cpu_to_le16(BT_LE_SCAN_INTERVAL_DEF);
 		cp.scan_window = cpu_to_le16(BT_LE_SCAN_WINDOW_DEF);
@@ -119,7 +107,7 @@ struct hci_conn *hci_le_connect(struct hci_dev *hdev, __u16 pkt_type,
 		cp.conn_interval_max = cpu_to_le16(BT_LE_CONN_INTERVAL_MAX_DEF);
 		cp.conn_latency = cpu_to_le16(BT_LE_LATENCY_DEF);
 		le->conn_timeout = 5;
-	}
+	
 	if (!bacmp(&le->dst, BDADDR_ANY)) {
 		cp.filter_policy = 0x01;
 		le->conn_timeout = 0;
