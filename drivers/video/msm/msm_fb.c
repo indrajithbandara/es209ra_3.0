@@ -797,7 +797,9 @@ static int msm_fb_blank_sub(int blank_mode, struct fb_info *info,
 	switch (blank_mode) {
 	case FB_BLANK_UNBLANK:
 		if (!mfd->panel_power_on) {
+#if !defined(CONFIG_FB_MSM_MDDI_TMD_NT35580)
 			msleep(16);
+#endif
 			if (pdata->controller_on_panel_on)
 				pdata->power_on_panel_at_pan = 1;
 			ret = pdata->on(mfd->pdev);
@@ -830,8 +832,9 @@ static int msm_fb_blank_sub(int blank_mode, struct fb_info *info,
 			curr_pwr_state = mfd->panel_power_on;
 			mfd->panel_power_on = FALSE;
 			bl_updated = 0;
-
+#if !defined(CONFIG_FB_MSM_MDDI_TMD_NT35580)
 			msleep(16);
+#endif
 			ret = pdata->off(mfd->pdev);
 			if (ret)
 				mfd->panel_power_on = curr_pwr_state;
@@ -1384,12 +1387,22 @@ static int msm_fb_register(struct msm_fb_data_type *mfd)
 	     mfd->index, fbi->var.xres, fbi->var.yres, fbi->fix.smem_len);
 
 #ifdef CONFIG_FB_MSM_LOGO
-	if (mfd->index == 0) {
-		if (!load_565rle_image(INIT_IMAGE_FILE, bf_supported)) {
-			msm_fb_open(fbi, 0);
-			msm_fb_pan_display(var, fbi);
-		}	/* Flip buffer */
-	}
+  ret = load_565rle_image(INIT_IMAGE_FILE);  /* Flip buffer */
+#if defined(CONFIG_FB_MSM_MDDI_TMD_NT35580)
+  if (!ret) {
+    struct fb_var_screeninfo var;
+    int ret;
+
+    var = fbi->var;
+    var.reserved[0] = 0x54445055;
+    var.reserved[1] = 0;
+    var.reserved[2] = (mfd->panel_info.yres << 16) | (mfd->panel_info.xres);
+    msm_fb_open(fbi, 0);
+    ret = msm_fb_pan_display(&var, fbi);
+    if(ret)
+      MSM_FB_INFO("msm_fb_pan_display ret=%d\n", ret);
+  }
+#endif
 #endif
 	ret = 0;
 
@@ -3309,11 +3322,12 @@ static int msm_fb_ioctl(struct fb_info *info, unsigned int cmd,
 		}
 
 		down(&msm_fb_ioctl_ppp_sem);
+#if !defined(CONFIG_FB_MSM_MDDI_TMD_NT35580)
 		if (ccs_matrix.direction == MDP_CCS_RGB2YUV)
 			mdp_ccs_rgb2yuv = ccs_matrix;
 		else
 			mdp_ccs_yuv2rgb = ccs_matrix;
-
+#endif
 		msmfb_set_color_conv(&ccs_matrix) ;
 		up(&msm_fb_ioctl_ppp_sem);
 #else
