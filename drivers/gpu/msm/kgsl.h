@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2008-2012, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -118,6 +118,8 @@ struct kgsl_memdesc_ops {
 	int (*map_kernel_mem)(struct kgsl_memdesc *);
 };
 
+#define KGSL_MEMDESC_GUARD_PAGE BIT(0)
+
 /* shared memory allocation */
 struct kgsl_memdesc {
 	struct kgsl_pagetable *pagetable;
@@ -129,6 +131,7 @@ struct kgsl_memdesc {
 	struct scatterlist *sg;
 	unsigned int sglen;
 	struct kgsl_memdesc_ops *ops;
+	int flags;
 };
 
 /* List of different memory entry types */
@@ -159,6 +162,10 @@ struct kgsl_mem_entry {
 #endif
 
 void kgsl_mem_entry_destroy(struct kref *kref);
+
+struct kgsl_mem_entry *kgsl_get_mem_entry(unsigned int ptbase,
+		unsigned int gpuaddr, unsigned int size);
+
 struct kgsl_mem_entry *kgsl_sharedmem_find_region(
 	struct kgsl_process_private *private, unsigned int gpuaddr,
 	size_t size);

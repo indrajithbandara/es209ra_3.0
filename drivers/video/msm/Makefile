@@ -1,6 +1,11 @@
 obj-y := msm_fb.o
 
-obj-$(CONFIG_FB_MSM_LOGO) += logo.o
+# core framebuffer
+#
+obj-y := msm_fb.o logo.o
+ifeq ($(CONFIG_FB_MSM_LOGO),y)
+obj-y += logo.o
+endif
 obj-$(CONFIG_FB_BACKLIGHT) += msm_fb_bl.o
 
 # MDP
@@ -59,6 +64,9 @@ obj-$(CONFIG_FB_MSM_LCDC) += lcdc.o
 # MDDI
 msm_mddi-objs := mddi.o mddihost.o mddihosti.o
 obj-$(CONFIG_FB_MSM_MDDI) += msm_mddi.o
+
+# Yamato GL driver
+obj-$(CONFIG_GPU_MSM_KGSL) += gpu/kgsl/
 
 # External MDDI
 msm_mddi_ext-objs := mddihost_e.o mddi_ext.o

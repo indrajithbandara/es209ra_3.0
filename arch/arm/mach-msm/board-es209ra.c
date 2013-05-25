@@ -144,6 +144,10 @@
 #include <mach/semc_low_batt_shutdown.h>
 #endif /* CONFIG_SEMC_LOW_BATT_SHUTDOWN */
 
+#ifdef CONFIG_USB_MSM_OTG_72K
+#include <mach/msm72k_otg.h>
+#endif
+
 #ifdef CONFIG_SEMC_MSM_PMIC_VIBRATOR
 #include  <linux/semc/msm_pmic_vibrator.h>
 #endif
@@ -161,7 +165,7 @@
 #define SMEM_SPINLOCK_I2C	"S:6"
 
 #define MSM_PMEM_ADSP_SIZE	0x2196000
-#define MSM_FB_SIZE		0x500000
+//#define MSM_FB_SIZE		0x500000
 #define MSM_AUDIO_SIZE		0x80000
 #define MSM_GPU_PHYS_SIZE 	SZ_2M
 
@@ -176,7 +180,15 @@
 #define MSM_PMEM_SMI_BASE	(MSM_SMI_BASE + 0x02B00000)
 #define MSM_PMEM_SMI_SIZE	0x01500000
 
-#define MSM_FB_BASE		MSM_PMEM_SMI_BASE
+#define MSM_FB_BASE		0x02B00000
+#ifdef CONFIG_FB_MSM_TRIPLE_BUFFER
+#define MSM_FB_SIZE     0x00278780
+#define MSM_FB_NUM  3
+#else
+#define MSM_FB_SIZE     0x001B0500
+#define MSM_FB_NUM  2
+#endif
+
 #define MSM_GPU_PHYS_BASE 	(MSM_FB_BASE + MSM_FB_SIZE)
 #define MSM_PMEM_SMIPOOL_BASE	(MSM_GPU_PHYS_BASE + MSM_GPU_PHYS_SIZE)
 #define MSM_PMEM_SMIPOOL_SIZE	(MSM_PMEM_SMI_SIZE - MSM_FB_SIZE \
@@ -828,7 +840,7 @@ static void __init msm_mddi_tmd_fwvga_display_device_init(void)
 	panel_data->panel_info.clk_rate = 192000000;
 	panel_data->panel_info.clk_min =  190000000;
 	panel_data->panel_info.clk_max = 200000000;
-	panel_data->panel_info.fb_num = 2;
+	panel_data->panel_info.fb_num = MSM_FB_NUM;
 
 	panel_data->panel_info.mddi.vdopkt = MDDI_DEFAULT_PRIM_PIX_ATTR;
 
@@ -1178,6 +1190,148 @@ static void __init bt_power_init(void)
 #define bt_power_init(x) do {} while (0)
 #endif
 
+/*struct kgsl_cpufreq_voter {
+        int idle;
+        struct msm_cpufreq_voter voter;
+};
+
+static int kgsl_cpufreq_vote(struct msm_cpufreq_voter *v)
+{
+        struct kgsl_cpufreq_voter *kv =
+                        container_of(v, struct kgsl_cpufreq_voter, voter);
+
+        return kv->idle ? MSM_CPUFREQ_IDLE : MSM_CPUFREQ_ACTIVE;
+}
+
+static struct kgsl_cpufreq_voter kgsl_cpufreq_voter = {
+        .idle = 1,
+        .voter = {
+                .vote = kgsl_cpufreq_vote,
+        },
+};*/
+
+///////////////////////////////////////////////////////////////////////
+// KGSL (HW3D support)#include <linux/android_pmem.h>
+///////////////////////////////////////////////////////////////////////
+static int es209ra_kgsl_power_rail_mode(int follow_clk)
+{
+        int mode = follow_clk ? 0 : 1;
+        int rail_id = 0;
+        return msm_proc_comm(PCOM_CLK_REGIME_SEC_RAIL_CONTROL, &rail_id, &mode);
+}
+
+static int es209ra_kgsl_power(bool on)
+{
+        int cmd;
+        int rail_id = 0;
+
+        cmd = on ? PCOM_CLK_REGIME_SEC_RAIL_ENABLE : PCOM_CLK_REGIME_SEC_RAIL_DISABLE;
+        return msm_proc_comm(cmd, &rail_id, 0);
+}
+
+/* start kgsl-3d0 */
+static struct resource kgsl_3d0_resources[] = {
+        {
+                .name  = KGSL_3D0_REG_MEMORY,
+                .start = 0xA0000000,
+                .end = 0xA001ffff,
+                .flags = IORESOURCE_MEM,
+        },
+        {
+                .name = KGSL_3D0_IRQ,
+                .start = INT_GRAPHICS,
+                .end = INT_GRAPHICS,
+                .flags = IORESOURCE_IRQ,
+        },
+};
+
+static struct kgsl_device_platform_data kgsl_3d0_pdata = {
+        .pwr_data = {
+                .pwrlevel = {
+                        {
+                                .gpu_freq = 0,
+                                .bus_freq = 128000000,
+                        },
+                },
+                .init_level = 0,
+                .num_levels = 1,
+                .set_grp_async = NULL,
+                .idle_timeout = HZ/5,
+        },
+        .clk = {
+                .name = {
+                        .clk = "grp_clk",
+                },
+        },
+        .imem_clk_name = {
+                .clk = "imem_clk",
+        },
+};
+
+struct platform_device msm_kgsl_3d0 = {
+        .name = "kgsl-3d0",
+        .id = 0,
+        .num_resources = ARRAY_SIZE(kgsl_3d0_resources),
+        .resource = kgsl_3d0_resources,
+        .dev = {
+                .platform_data = &kgsl_3d0_pdata,
+        },
+};
+/* end kgsl-3d0 */
+/*
+
+
+static struct resource kgsl_3d0_resources[] = {
+       {
+                .name  = KGSL_3D0_REG_MEMORY,
+                .start = 0xA0000000,
+                .end = 0xA001ffff,
+                .flags = IORESOURCE_MEM,
+       },
+       {
+                .name = KGSL_3D0_IRQ,
+                .start = 20,
+                .end = 20,
+                .flags = IORESOURCE_IRQ,
+       },
+};
+static struct kgsl_device_platform_data kgsl_3d0_pdata = {
+        .pwr_data = {
+                .pwrlevel = {
+                        {
+                                .gpu_freq = 128000000,
+                                .bus_freq = 128000000,
+                        },
+                        {
+                                .gpu_freq = 128000000,
+                                .bus_freq = 0,
+                        },
+                },
+                .init_level = 0,
+                .num_levels = 2,
+                .set_grp_async = NULL,
+                .idle_timeout = HZ/20,
+                .nap_allowed = true,
+        },
+        .clk = {
+                .name = {
+                        .clk = "grp_clk",
+                },
+        },
+        .imem_clk_name = {
+                .clk = "imem_clk",
+        },
+};
+
+static struct platform_device msm_kgsl_3d0 = {
+       .name = "kgsl-3d0",
+       .id = 0,
+       .num_resources = ARRAY_SIZE(kgsl_3d0_resources),
+       .resource = kgsl_3d0_resources,
+        .dev = {
+                .platform_data = &kgsl_3d0_pdata,
+        },
+};*/
 
 #ifdef CONFIG_ES209RA_HEADSET
 struct es209ra_headset_platform_data es209ra_headset_data = {
@@ -1749,7 +1903,11 @@ static struct platform_device *devices[] __initdata = {
 #if !defined(CONFIG_MSM_SERIAL_DEBUGGER)
 	/* &msm_device_uart3, */
 #endif
-	&msm_kgsl_3d0,
+#ifdef CONFIG_MSM_KGSL
+  &msm_kgsl_3d0,
+#else
+   &msm_kgsl_device,
+#endif
 	&hs_device,
 #if defined(CONFIG_TSIF) || defined(CONFIG_TSIF_MODULE)
 	&msm_device_tsif,
@@ -2239,6 +2397,14 @@ static void __init es209ra_init(void)
 	spi_register_board_info(msm_spi_board_info,
 				ARRAY_SIZE(msm_spi_board_info));
 	msm_pm_set_platform_data(msm_pm_data, ARRAY_SIZE(msm_pm_data));
+
+       /* set the gpu power rail to manual mode so clk en/dis will not
+	* turn off gpu power, and hang it on resume */
+
+	es209ra_kgsl_power_rail_mode(0);
+	es209ra_kgsl_power(false);
+	mdelay(100);
+	es209ra_kgsl_power(true);
 	platform_device_register(&es209ra_keypad_device);
 	msm_mddi_tmd_fwvga_display_device_init();
 }

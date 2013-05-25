@@ -1,4 +1,4 @@
-/* Copyright (c) 2002,2007-2012, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2002,2007-2011, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -16,7 +16,6 @@
 #include <linux/slab.h>
 #include <linux/dma-mapping.h>
 #include <linux/vmalloc.h>
-#include "kgsl_mmu.h"
 #include <linux/slab.h>
 #include <linux/kmemleak.h>
 
@@ -29,6 +28,8 @@ struct kgsl_process_private;
 
 /** Set if the memdesc describes cached memory */
 #define KGSL_MEMFLAGS_CACHED    0x00000001
+/** Set if the memdesc is mapped into all pagetables */
+#define KGSL_MEMFLAGS_GLOBAL    0x00000002
 
 extern struct kgsl_memdesc_ops kgsl_page_alloc_ops;
 
@@ -130,8 +131,6 @@ static inline int
 kgsl_allocate(struct kgsl_memdesc *memdesc,
 		struct kgsl_pagetable *pagetable, size_t size)
 {
-	if (kgsl_mmu_get_mmutype() == KGSL_MMU_TYPE_NONE)
-		return kgsl_sharedmem_ebimem(memdesc, pagetable, size);
 	return kgsl_sharedmem_page_alloc(memdesc, pagetable, size);
 }
 
@@ -140,9 +139,6 @@ kgsl_allocate_user(struct kgsl_memdesc *memdesc,
 		struct kgsl_pagetable *pagetable,
 		size_t size, unsigned int flags)
 {
-	if (kgsl_mmu_get_mmutype() == KGSL_MMU_TYPE_NONE)
-		return kgsl_sharedmem_ebimem_user(memdesc, pagetable, size,
-						  flags);
 	return kgsl_sharedmem_page_alloc_user(memdesc, pagetable, size, flags);
 }
 
@@ -150,8 +146,6 @@ static inline int
 kgsl_allocate_contiguous(struct kgsl_memdesc *memdesc, size_t size)
 {
 	int ret  = kgsl_sharedmem_alloc_coherent(memdesc, size);
-	if (!ret && (kgsl_mmu_get_mmutype() == KGSL_MMU_TYPE_NONE))
-		memdesc->gpuaddr = memdesc->physaddr;
 	return ret;
 }
 

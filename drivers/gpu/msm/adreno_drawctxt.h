@@ -66,21 +66,38 @@ struct gmem_shadow_t {
 	unsigned int gmem_restore[3];
 	struct kgsl_memdesc quad_vertices;
 	struct kgsl_memdesc quad_texcoords;
+	struct kgsl_memdesc quad_vertices_restore;
 };
 
 struct adreno_context {
 	uint32_t flags;
 	struct kgsl_pagetable *pagetable;
 	struct kgsl_memdesc gpustate;
-	unsigned int reg_save[3];
 	unsigned int reg_restore[3];
 	unsigned int shader_save[3];
-	unsigned int shader_fixup[3];
 	unsigned int shader_restore[3];
-	unsigned int chicken_restore[3];
-	unsigned int bin_base_offset;
+
 	/* Information of the GMEM shadow that is created in context create */
 	struct gmem_shadow_t context_gmem_shadow;
+
+	/* A2XX specific items */
+	unsigned int reg_save[3];
+	unsigned int shader_fixup[3];
+	unsigned int chicken_restore[3];
+	unsigned int bin_base_offset;
+
+	/* A3XX specific items */
+	unsigned int regconstant_save[3];
+	unsigned int constant_restore[3];
+	unsigned int hlsqcontrol_restore[3];
+	unsigned int save_fixup[3];
+	unsigned int restore_fixup[3];
+	struct kgsl_memdesc shader_load_commands[2];
+	struct kgsl_memdesc shader_save_commands[4];
+	struct kgsl_memdesc constant_save_commands[3];
+	struct kgsl_memdesc constant_load_commands[3];
+	struct kgsl_memdesc cond_execs[4];
+	struct kgsl_memdesc hlsqcontrol_restore_commands[1];
 };
 
 int adreno_drawctxt_create(struct kgsl_device *device,
