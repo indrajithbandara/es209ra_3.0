@@ -122,8 +122,7 @@ adreno_ringbuffer_waitspace(struct adreno_ringbuffer *rb, unsigned int numcmds,
 	} while ((freecmds != 0) && (freecmds <= numcmds));
 }
 
-
-static unsigned int *adreno_ringbuffer_allocspace(struct adreno_ringbuffer *rb,
+unsigned int *adreno_ringbuffer_allocspace(struct adreno_ringbuffer *rb,
 					     unsigned int numcmds)
 {
 	unsigned int	*ptr = NULL;

@@ -56,6 +56,7 @@ struct kgsl_pwrctrl {
 	const char *irq_name;
 	s64 time;
 	struct kgsl_busy busy;
+	const char *src_clk_name;
 	unsigned int restore_slumber;
 };
 

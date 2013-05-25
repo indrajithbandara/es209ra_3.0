@@ -15,6 +15,7 @@
 #include <asm/cacheflush.h>
 #include <linux/slab.h>
 #include <linux/kmemleak.h>
+#include <linux/highmem.h>
 
 #include "kgsl.h"
 #include "kgsl_sharedmem.h"
@@ -62,6 +63,12 @@ struct mem_entry_stats {
 		mem_entry_max_show), \
 }
 
+/*
+ * One page allocation for a guard region to protect against over-zealous
+ * GPU pre-fetch
+ */
+
+static struct page *kgsl_guard_page;
 
 /**
  * Given a kobj, find the process structure attached to it
@@ -467,9 +474,19 @@ _kgsl_sharedmem_page_alloc(struct kgsl_memdesc *memdesc,
 			struct kgsl_pagetable *pagetable,
 			size_t size, unsigned int protflags)
 {
-	int order, ret = 0;
+	int i, order, ret = 0;
 	int sglen = PAGE_ALIGN(size) / PAGE_SIZE;
-	int i;
+	struct page **pages = NULL;
+	pgprot_t page_prot = pgprot_writecombine(PAGE_KERNEL);
+	void *ptr;
+
+	/*
+	 * Add guard page to the end of the allocation when the
+	 * IOMMU is in use.
+	 */
+
+	if (kgsl_mmu_get_mmutype() == KGSL_MMU_TYPE_IOMMU)
++		sglen++;
 
 	memdesc->size = size;
 	memdesc->pagetable = pagetable;
@@ -490,17 +507,81 @@ _kgsl_sharedmem_page_alloc(struct kgsl_memdesc *memdesc,
 	memdesc->sglen = sglen;
 	sg_init_table(memdesc->sg, sglen);
 
-	for (i = 0; i < memdesc->sglen; i++) {
-		struct page *page = alloc_page(GFP_KERNEL | __GFP_ZERO |
-						__GFP_HIGHMEM);
-		if (!page) {
+	for (i = 0; i < PAGE_ALIGN(size) / PAGE_SIZE; i++) {
+
+		/*
+		 * Don't use GFP_ZERO here because it is faster to memset the
+		 * range ourselves (see below)
+		 */
+
+		pages[i] = alloc_page(GFP_KERNEL | __GFP_HIGHMEM);
+		if (pages[i] == NULL) {
 			ret = -ENOMEM;
-			memdesc->sglen = i;
+			memdesc->sglen = i;	
 			goto done;
 		}
-		flush_dcache_page(page);
-		sg_set_page(&memdesc->sg[i], page, PAGE_SIZE, 0);
+		
+		sg_set_page(&memdesc->sg[i], pages[i], PAGE_SIZE, 0);
 	}
+	/* ADd the guard page to the end of the sglist */
+
+        if (kgsl_mmu_get_mmutype() == KGSL_MMU_TYPE_IOMMU) {
+                /*
+                 * It doesn't matter if we use GFP_ZERO here, this never
+                 * gets mapped, and we only allocate it once in the life
+                 * of the system
+                 */
+
+                if (kgsl_guard_page == NULL)
+                        kgsl_guard_page = alloc_page(GFP_KERNEL | __GFP_ZERO |
+                                __GFP_HIGHMEM);
+
+                if (kgsl_guard_page != NULL) {
+                        sg_set_page(&memdesc->sg[sglen - 1], kgsl_guard_page,
+                                PAGE_SIZE, 0);
+                        memdesc->flags |= KGSL_MEMDESC_GUARD_PAGE;
+                } else
+                        memdesc->sglen--;
+        }
+
+	/*
+         * All memory that goes to the user has to be zeroed out before it gets
+         * exposed to userspace. This means that the memory has to be mapped in
+         * the kernel, zeroed (memset) and then unmapped.  This also means that
+         * the dcache has to be flushed to ensure coherency between the kernel
+         * and user pages. We used to pass __GFP_ZERO to alloc_page which mapped
+         * zeroed and unmaped each individual page, and then we had to turn
+         * around and call flush_dcache_page() on that page to clear the caches.
+         * This was killing us for performance. Instead, we found it is much
+         * faster to allocate the pages without GFP_ZERO, map the entire range,
+         * memset it, flush the range and then unmap - this results in a factor
+         * of 4 improvement for speed for large buffers.  There is a small
+         * increase in speed for small buffers, but only on the order of a few
+         * microseconds at best.  The only downside is that there needs to be
+         * enough temporary space in vmalloc to accomodate the map. This
+         * shouldn't be a problem, but if it happens, fall back to a much slower
+         * path
+         */
+
+        ptr = vmap(pages, i, VM_IOREMAP, page_prot);
+
+        if (ptr != NULL) {
+                memset(ptr, 0, memdesc->size);
+                dmac_flush_range(ptr, ptr + memdesc->size);
+                vunmap(ptr);
+        } else {
+                int j;
+
+                /* Very, very, very slow path */
+
+                for (j = 0; j < i; j++) {
+                        ptr = kmap_atomic(pages[j],KM_BOUNCE_READ);
+                        memset(ptr, 0, PAGE_SIZE);
+                        dmac_flush_range(ptr, ptr + PAGE_SIZE);
+                        kunmap_atomic(ptr,KM_BOUNCE_READ);
+                }
+        }
+
 	outer_cache_range_op_sg(memdesc->sg, memdesc->sglen,
 				KGSL_CACHE_OP_FLUSH);
 
@@ -518,6 +599,8 @@ _kgsl_sharedmem_page_alloc(struct kgsl_memdesc *memdesc,
 		kgsl_driver.stats.histogram[order]++;
 
 done:
+	kfree(pages);
+
 	if (ret)
 		kgsl_sharedmem_free(memdesc);
 
@@ -734,7 +817,7 @@ kgsl_sharedmem_set(const struct kgsl_memdesc *memdesc, unsigned int offsetbytes,
 	BUG_ON(offsetbytes + sizebytes > memdesc->size);
 
 	kgsl_cffdump_setmem(memdesc->gpuaddr + offsetbytes, value,
-			    sizebytes);
+		 sizebytes);
 	memset(memdesc->hostptr + offsetbytes, value, sizebytes);
 	return 0;
 }

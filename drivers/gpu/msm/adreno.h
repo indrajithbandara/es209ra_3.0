@@ -81,6 +81,10 @@ struct adreno_device {
 
 struct adreno_gpudev {
 	/* keeps track of when we need to execute the draw workaround code */
+	unsigned int reg_rbbm_status;
+	unsigned int reg_cp_pfp_ucode_data;
+	unsigned int reg_cp_pfp_ucode_addr;
+	
 	int ctx_switches_since_last_draw;
 	int (*ctxt_create)(struct adreno_device *, struct adreno_context *);
 	void (*ctxt_save)(struct adreno_device *, struct adreno_context *);
@@ -88,10 +92,14 @@ struct adreno_gpudev {
 	void (*ctxt_draw_workaround)(struct adreno_device *);
 	irqreturn_t (*irq_handler)(struct adreno_device *);
 	void (*irq_control)(struct adreno_device *, int);
+	void (*rb_init)(struct adreno_device *, struct adreno_ringbuffer *);
+	void (*start)(struct adreno_device *);
 	void * (*snapshot)(struct adreno_device *, void *, int *, int);
+	unsigned int (*busy_cycles)(struct adreno_device *);
 };
 
 extern struct adreno_gpudev adreno_a2xx_gpudev;
+extern struct adreno_gpudev adreno_a3xx_gpudev;
 
 /* A2XX register sets defined in adreno_a2xx.c */
 extern const unsigned int a200_registers[];

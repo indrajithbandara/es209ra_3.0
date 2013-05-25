@@ -136,6 +136,39 @@ static void kgsl_cancel_events(struct kgsl_device *device,
 	}
 }
 
+/* kgsl_get_mem_entry - get the mem_entry structure for the specified object
++ * @ptbase - the pagetable base of the object
++ * @gpuaddr - the GPU address of the object
++ * @size - Size of the region to search
++ */
+
+struct kgsl_mem_entry *kgsl_get_mem_entry(unsigned int ptbase,
+	unsigned int gpuaddr, unsigned int size)
+{
+	struct kgsl_process_private *priv;
+	struct kgsl_mem_entry *entry;
+
+	mutex_lock(&kgsl_driver.process_mutex);
+
+	list_for_each_entry(priv, &kgsl_driver.process_list, list) {
+		if (!kgsl_mmu_pt_equal(priv->pagetable, ptbase))
+			continue;
+		spin_lock(&priv->mem_lock);
+		entry = kgsl_sharedmem_find_region(priv, gpuaddr, size);
+
+		if (entry) {
+			spin_unlock(&priv->mem_lock);
+			mutex_unlock(&kgsl_driver.process_mutex);
+			return entry;
+		}
+		spin_unlock(&priv->mem_lock);
+	}
+	mutex_unlock(&kgsl_driver.process_mutex);
+
+	return NULL;
+}
+EXPORT_SYMBOL(kgsl_get_mem_entry);
+
 static inline struct kgsl_mem_entry *
 kgsl_mem_entry_create(void)
 {
@@ -155,8 +188,6 @@ kgsl_mem_entry_destroy(struct kref *kref)
 	struct kgsl_mem_entry *entry = container_of(kref,
 						    struct kgsl_mem_entry,
 						    refcount);
-
-	entry->priv->stats[entry->memtype].cur -= entry->memdesc.size;
 
 	if (entry->memtype != KGSL_MEM_ENTRY_KERNEL)
 		kgsl_driver.stats.mapped -= entry->memdesc.size;
@@ -218,6 +249,21 @@ void kgsl_mem_entry_attach_process(struct kgsl_mem_entry *entry,
 	spin_unlock(&process->mem_lock);
 
 	entry->priv = process;
+}
+
+/* Detach a memory entry from a process and unmap it from the MMU */
+
+static void kgsl_mem_entry_detach_process(struct kgsl_mem_entry *entry)
+{
+	if (entry == NULL)
+		return;
+
+	entry->priv->stats[entry->memtype].cur -= entry->memdesc.size;
+	entry->priv = NULL;
+
+	kgsl_mmu_unmap(entry->memdesc.pagetable, &entry->memdesc);
+
+	kgsl_mem_entry_put(entry);
 }
 
 /* Allocate a new context id */
@@ -619,7 +665,7 @@ kgsl_put_process_private(struct kgsl_device *device,
 		node = rb_next(&entry->node);
 
 		rb_erase(&entry->node, &private->mem_rb);
-		kgsl_mem_entry_put(entry);
+		kgsl_mem_entry_detach_process(entry);
 	}
 	kgsl_mmu_putpagetable(private->pagetable);
 	kfree(private);
@@ -995,7 +1041,7 @@ static void kgsl_freemem_event_cb(struct kgsl_device *device,
 	spin_lock(&entry->priv->mem_lock);
 	rb_erase(&entry->node, &entry->priv->mem_rb);
 	spin_unlock(&entry->priv->mem_lock);
-	kgsl_mem_entry_put(entry);
+	kgsl_mem_entry_detach_process(entry);
 }
 
 static long kgsl_ioctl_cmdstream_freememontimestamp(struct kgsl_device_private
@@ -1090,7 +1136,7 @@ static long kgsl_ioctl_sharedmem_free(struct kgsl_device_private *dev_priv,
 	spin_unlock(&private->mem_lock);
 
 	if (entry) {
-		kgsl_mem_entry_put(entry);
+		kgsl_mem_entry_detach_process(entry);
 	} else {
 		KGSL_CORE_ERR("invalid gpuaddr %08x\n", param->gpuaddr);
 		result = -EINVAL;
@@ -1495,6 +1541,12 @@ static int kgsl_setup_ion(struct kgsl_mem_entry *entry,
 	struct scatterlist *s;
 	unsigned long flags;
 
+	if (kgsl_ion_client == NULL) {
+                kgsl_ion_client = msm_ion_client_create(UINT_MAX, KGSL_NAME);
+                if (kgsl_ion_client == NULL)
+                        return -ENODEV;
+        }
+
 	if (IS_ERR_OR_NULL(kgsl_ion_client))
 		return -ENODEV;
 
@@ -1617,7 +1669,7 @@ static long kgsl_ioctl_map_user_mem(struct kgsl_device_private *dev_priv,
 	param->gpuaddr = entry->memdesc.gpuaddr + (param->offset & ~PAGE_MASK);
 
 	KGSL_STATS_ADD(param->len, kgsl_driver.stats.mapped,
-		kgsl_driver.stats.mapped_max);
+		       kgsl_driver.stats.mapped_max);
 
 	kgsl_process_add_stats(private, entry->memtype, param->len);
 
@@ -1664,6 +1716,7 @@ kgsl_ioctl_sharedmem_flush_cache(struct kgsl_device_private *dev_priv,
 		result = -EINVAL;
 		goto done;
 	}
+
 	if (!entry->memdesc.hostptr) {
 		KGSL_CORE_ERR("invalid hostptr with gpuaddr %08x\n",
 			param->gpuaddr);
@@ -1944,7 +1997,7 @@ static long kgsl_ioctl(struct file *filep, unsigned int cmd, unsigned long arg)
 		if (!func) {
 			KGSL_DRV_INFO(dev_priv->device,
 				      "invalid ioctl code %08x\n", cmd);
-			ret = -EINVAL;
+			ret = -ENOIOCTLCMD;
 			goto done;
 		}
 		lock = 1;
@@ -2254,7 +2307,7 @@ int kgsl_device_platform_probe(struct kgsl_device *device,
 	if (status)
 		goto error;
 
-	kgsl_ion_client = msm_ion_client_create(UINT_MAX, KGSL_NAME);
+	//kgsl_ion_client = msm_ion_client_create(UINT_MAX, KGSL_NAME);
 
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM,
 					   device->iomemname);
