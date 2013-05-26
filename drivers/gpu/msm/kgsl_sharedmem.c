@@ -1,4 +1,4 @@
-/* Copyright (c) 2002,2007-2012, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2002,2007-2012, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -62,6 +62,7 @@ struct mem_entry_stats {
 	.max_attr = __MEM_ENTRY_ATTR(_type, _name##_max, \
 		mem_entry_max_show), \
 }
+
 
 /*
  * One page allocation for a guard region to protect against over-zealous
@@ -159,7 +160,7 @@ static struct mem_entry_stats mem_stats[] = {
 #endif
 	MEM_ENTRY_STAT(KGSL_MEM_ENTRY_USER, user),
 #ifdef CONFIG_ION
-	MEM_ENTRY_STAT(KGSL_MEM_ENTRY_USER, ion),
+	MEM_ENTRY_STAT(KGSL_MEM_ENTRY_ION, ion),
 #endif
 };
 
@@ -340,13 +341,20 @@ static void kgsl_page_alloc_free(struct kgsl_memdesc *memdesc)
 {
 	int i = 0;
 	struct scatterlist *sg;
+	int sglen = memdesc->sglen;
+
+	/* Don't free the guard page if it was used */
+	if (memdesc->flags & KGSL_MEMDESC_GUARD_PAGE)
+		sglen--;
+
 	kgsl_driver.stats.page_alloc -= memdesc->size;
+
 	if (memdesc->hostptr) {
 		vunmap(memdesc->hostptr);
 		kgsl_driver.stats.vmalloc -= memdesc->size;
 	}
 	if (memdesc->sg)
-		for_each_sg(memdesc->sg, sg, memdesc->sglen, i)
+		for_each_sg(memdesc->sg, sg, sglen, i)
 			__free_page(sg_page(sg));
 }
 
@@ -369,17 +377,23 @@ static int kgsl_page_alloc_map_kernel(struct kgsl_memdesc *memdesc)
 		pgprot_t page_prot = pgprot_writecombine(PAGE_KERNEL);
 		struct page **pages = NULL;
 		struct scatterlist *sg;
+		int sglen = memdesc->sglen;
 		int i;
+
+		/* Don't map the guard page if it exists */
+		if (memdesc->flags & KGSL_MEMDESC_GUARD_PAGE)
+			sglen--;
+
 		/* create a list of pages to call vmap */
-		pages = vmalloc(memdesc->sglen * sizeof(struct page *));
+		pages = vmalloc(sglen * sizeof(struct page *));
 		if (!pages) {
 			KGSL_CORE_ERR("vmalloc(%d) failed\n",
-				memdesc->sglen * sizeof(struct page *));
+				sglen * sizeof(struct page *));
 			return -ENOMEM;
 		}
-		for_each_sg(memdesc->sg, sg, memdesc->sglen, i)
+		for_each_sg(memdesc->sg, sg, sglen, i)
 			pages[i] = sg_page(sg);
-		memdesc->hostptr = vmap(pages, memdesc->sglen,
+		memdesc->hostptr = vmap(pages, sglen,
 					VM_IOREMAP, page_prot);
 		KGSL_STATS_ADD(memdesc->size, kgsl_driver.stats.vmalloc,
 				kgsl_driver.stats.vmalloc_max);
@@ -486,7 +500,7 @@ _kgsl_sharedmem_page_alloc(struct kgsl_memdesc *memdesc,
 	 */
 
 	if (kgsl_mmu_get_mmutype() == KGSL_MMU_TYPE_IOMMU)
-+		sglen++;
+		sglen++;
 
 	memdesc->size = size;
 	memdesc->pagetable = pagetable;
@@ -498,6 +512,22 @@ _kgsl_sharedmem_page_alloc(struct kgsl_memdesc *memdesc,
 	if (memdesc->sg == NULL) {
 		KGSL_CORE_ERR("vmalloc(%d) failed\n",
 			sglen * sizeof(struct scatterlist));
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	/*
+	 * Allocate space to store the list of pages to send to vmap.
+	 * This is an array of pointers so we can track 1024 pages per page of
+	 * allocation which means we can handle up to a 8MB buffer request with
+	 * two pages; well within the acceptable limits for using kmalloc.
+	 */
+
+	pages = kmalloc(sglen * sizeof(struct page *), GFP_KERNEL);
+
+	if (pages == NULL) {
+		KGSL_CORE_ERR("kmalloc (%d) failed\n",
+			sglen * sizeof(struct page *));
 		ret = -ENOMEM;
 		goto done;
 	}
@@ -517,70 +547,71 @@ _kgsl_sharedmem_page_alloc(struct kgsl_memdesc *memdesc,
 		pages[i] = alloc_page(GFP_KERNEL | __GFP_HIGHMEM);
 		if (pages[i] == NULL) {
 			ret = -ENOMEM;
-			memdesc->sglen = i;	
+			memdesc->sglen = i;
 			goto done;
 		}
-		
+
 		sg_set_page(&memdesc->sg[i], pages[i], PAGE_SIZE, 0);
 	}
+
 	/* ADd the guard page to the end of the sglist */
 
-        if (kgsl_mmu_get_mmutype() == KGSL_MMU_TYPE_IOMMU) {
-                /*
-                 * It doesn't matter if we use GFP_ZERO here, this never
-                 * gets mapped, and we only allocate it once in the life
-                 * of the system
-                 */
+	if (kgsl_mmu_get_mmutype() == KGSL_MMU_TYPE_IOMMU) {
+		/*
+		 * It doesn't matter if we use GFP_ZERO here, this never
+		 * gets mapped, and we only allocate it once in the life
+		 * of the system
+		 */
 
-                if (kgsl_guard_page == NULL)
-                        kgsl_guard_page = alloc_page(GFP_KERNEL | __GFP_ZERO |
-                                __GFP_HIGHMEM);
+		if (kgsl_guard_page == NULL)
+			kgsl_guard_page = alloc_page(GFP_KERNEL | __GFP_ZERO |
+				__GFP_HIGHMEM);
 
-                if (kgsl_guard_page != NULL) {
-                        sg_set_page(&memdesc->sg[sglen - 1], kgsl_guard_page,
-                                PAGE_SIZE, 0);
-                        memdesc->flags |= KGSL_MEMDESC_GUARD_PAGE;
-                } else
-                        memdesc->sglen--;
-        }
+		if (kgsl_guard_page != NULL) {
+			sg_set_page(&memdesc->sg[sglen - 1], kgsl_guard_page,
+				PAGE_SIZE, 0);
+			memdesc->flags |= KGSL_MEMDESC_GUARD_PAGE;
+		} else
+			memdesc->sglen--;
+	}
 
 	/*
-         * All memory that goes to the user has to be zeroed out before it gets
-         * exposed to userspace. This means that the memory has to be mapped in
-         * the kernel, zeroed (memset) and then unmapped.  This also means that
-         * the dcache has to be flushed to ensure coherency between the kernel
-         * and user pages. We used to pass __GFP_ZERO to alloc_page which mapped
-         * zeroed and unmaped each individual page, and then we had to turn
-         * around and call flush_dcache_page() on that page to clear the caches.
-         * This was killing us for performance. Instead, we found it is much
-         * faster to allocate the pages without GFP_ZERO, map the entire range,
-         * memset it, flush the range and then unmap - this results in a factor
-         * of 4 improvement for speed for large buffers.  There is a small
-         * increase in speed for small buffers, but only on the order of a few
-         * microseconds at best.  The only downside is that there needs to be
-         * enough temporary space in vmalloc to accomodate the map. This
-         * shouldn't be a problem, but if it happens, fall back to a much slower
-         * path
-         */
+	 * All memory that goes to the user has to be zeroed out before it gets
+	 * exposed to userspace. This means that the memory has to be mapped in
+	 * the kernel, zeroed (memset) and then unmapped.  This also means that
+	 * the dcache has to be flushed to ensure coherency between the kernel
+	 * and user pages. We used to pass __GFP_ZERO to alloc_page which mapped
+	 * zeroed and unmaped each individual page, and then we had to turn
+	 * around and call flush_dcache_page() on that page to clear the caches.
+	 * This was killing us for performance. Instead, we found it is much
+	 * faster to allocate the pages without GFP_ZERO, map the entire range,
+	 * memset it, flush the range and then unmap - this results in a factor
+	 * of 4 improvement for speed for large buffers.  There is a small
+	 * increase in speed for small buffers, but only on the order of a few
+	 * microseconds at best.  The only downside is that there needs to be
+	 * enough temporary space in vmalloc to accomodate the map. This
+	 * shouldn't be a problem, but if it happens, fall back to a much slower
+	 * path
+	 */
 
-        ptr = vmap(pages, i, VM_IOREMAP, page_prot);
+	ptr = vmap(pages, i, VM_IOREMAP, page_prot);
 
-        if (ptr != NULL) {
-                memset(ptr, 0, memdesc->size);
-                dmac_flush_range(ptr, ptr + memdesc->size);
-                vunmap(ptr);
-        } else {
-                int j;
+	if (ptr != NULL) {
+		memset(ptr, 0, memdesc->size);
+		dmac_flush_range(ptr, ptr + memdesc->size);
+		vunmap(ptr);
+	} else {
+		int j;
 
-                /* Very, very, very slow path */
+		/* Very, very, very slow path */
 
-                for (j = 0; j < i; j++) {
-                        ptr = kmap_atomic(pages[j],KM_BOUNCE_READ);
-                        memset(ptr, 0, PAGE_SIZE);
-                        dmac_flush_range(ptr, ptr + PAGE_SIZE);
-                        kunmap_atomic(ptr,KM_BOUNCE_READ);
-                }
-        }
+		for (j = 0; j < i; j++) {
+			ptr = kmap_atomic(pages[j]);
+			memset(ptr, 0, PAGE_SIZE);
+			dmac_flush_range(ptr, ptr + PAGE_SIZE);
+			kunmap_atomic(ptr);
+		}
+	}
 
 	outer_cache_range_op_sg(memdesc->sg, memdesc->sglen,
 				KGSL_CACHE_OP_FLUSH);
@@ -817,7 +848,7 @@ kgsl_sharedmem_set(const struct kgsl_memdesc *memdesc, unsigned int offsetbytes,
 	BUG_ON(offsetbytes + sizebytes > memdesc->size);
 
 	kgsl_cffdump_setmem(memdesc->gpuaddr + offsetbytes, value,
-		 sizebytes);
+			    sizebytes);
 	memset(memdesc->hostptr + offsetbytes, value, sizebytes);
 	return 0;
 }
