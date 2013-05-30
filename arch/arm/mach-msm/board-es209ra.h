@@ -29,12 +29,13 @@
 
 #define INT_ES209RA_GPIO_BATLOW			MSM_GPIO_TO_INT(145)
 #define INT_ES209RA_GPIO_LEDC			MSM_GPIO_TO_INT(144)
-#define INT_ES209RA_GPIO_UART2DM_RXD		MSM_GPIO_TO_INT(139)
+#define INT_ES209RA_GPIO_UART2DM_RXD	MSM_GPIO_TO_INT(139)
 #define INT_ES209RA_GPIO_PROXS			MSM_GPIO_TO_INT(108)
 #define INT_ES209RA_GPIO_ETHER			MSM_GPIO_TO_INT(107)
 #define INT_ES209RA_GPIO_VSYNC			MSM_GPIO_TO_INT(98)
 #define INT_ES209RA_GPIO_ECOMPASS		MSM_GPIO_TO_INT(3)
-#define INT_ES209RA_GPIO_ACCEL			MSM_GPIO_TO_INT(82)
+#define ES209RA_GPIO_ACCEL			82
+#define INT_ES209RA_GPIO_ACCEL			MSM_GPIO_TO_INT(ES209RA_GPIO_ACCEL)
 #define INT_ES209RA_GPIO_OCV			MSM_GPIO_TO_INT(44)
 #define INT_ES209RA_GPIO_TOUCHPAD		MSM_GPIO_TO_INT(37)
 #define INT_ES209RA_GPIO_PM				MSM_GPIO_TO_INT(24)
@@ -62,6 +63,16 @@
 /* SEMC: add bit definition for startup_reason - end */
 
 extern struct max17040_device_data max17040_dev_data;
+
+//#define GPIO_COMPASS	    161
+#define GPIO_COMPASS_RST	2
+#define PROJECT_NAME          "es209ra"
+#define LAYOUTS { 			   \
+	{ {-1,  0, 0}, { 0, -1,  0}, {0, 0,  1} }, \
+	{ { 0, -1, 0}, { 1,  0,  0}, {0, 0, -1} }, \
+	{ { 0, -1, 0}, { 1,  0,  0}, {0, 0,  1} }, \
+	{ {-1,  0, 0}, { 0,  0, -1}, {0, 1,  0} }  \
+}
 
 #endif
 

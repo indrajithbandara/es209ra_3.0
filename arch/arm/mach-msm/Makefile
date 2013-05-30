@@ -301,7 +301,7 @@ endif
 
 obj-$(CONFIG_ARCH_MSM7X27) += gpiomux-7x27.o gpiomux-v1.o gpiomux.o
 obj-$(CONFIG_ARCH_MSM7X30) += gpiomux-7x30.o gpiomux-v1.o gpiomux.o
-obj-$(CONFIG_ARCH_QSD8X50) += gpiomux-8x50.o gpiomux-v1.o gpiomux.o
+obj-$(CONFIG_ARCH_QSD8X50) += gpiomux-v1.o gpiomux-8x50.o gpiomux.o
 obj-$(CONFIG_ARCH_MSM8X60) += gpiomux-8x60.o gpiomux-v2.o gpiomux.o
 obj-$(CONFIG_ARCH_MSM8960) += gpiomux-v2.o gpiomux.o
 obj-$(CONFIG_ARCH_APQ8064) += gpiomux-v2.o gpiomux.o
@@ -339,6 +339,7 @@ obj-$(CONFIG_ES209RA_HEADSET) += es209ra_headset.o
 
 obj-$(CONFIG_MAX17040_FUELGAUGE) += semc_max17040_settings.o
 obj-$(CONFIG_MACH_ES209RA) += board-es209ra.o board-es209ra-keypad.o msm_vibrator.o
+obj-$(CONFIG_SEMC_LOW_BATT_SHUTDOWN) += semc_low_batt_shutdown.o
 
 obj-$(CONFIG_ARCH_MSM8960) += mdm2.o mdm_common.o
 obj-$(CONFIG_MSM_RTB) += msm_rtb.o

@@ -152,7 +152,6 @@
 #include  <linux/semc/msm_pmic_vibrator.h>
 #endif
 
-
 /* MDDI includes */
 #include "../../../drivers/video/msm/msm_fb_panel.h"
 #include "../../../drivers/video/msm/mddihost.h"
@@ -160,9 +159,9 @@
 #define TOUCHPAD_SUSPEND 	34
 #define TOUCHPAD_IRQ 		38
 
-#define MSM_PMEM_MDP_SIZE	0x1C91000
-
 #define SMEM_SPINLOCK_I2C	"S:6"
+
+#define MSM_PMEM_MDP_SIZE	0x1C91000
 
 #define MSM_PMEM_ADSP_SIZE	0x2196000
 //#define MSM_FB_SIZE		0x500000
@@ -1948,6 +1947,12 @@ static struct platform_device *devices[] __initdata = {
 #ifdef CONFIG_PMIC_TIME
 	&pmic_time_device,
 #endif
+#ifdef CONFIG_USB_ANDROID_ACM
+static char *usb_functions_adb_acm[] = {
+    "adb",
+    "acm",
+};
+#endif
 };
 
 static void __init es209ra_init_irq(void)
@@ -2106,7 +2111,7 @@ static uint32_t msm_sdcc_setup_power(struct device *dv, unsigned int vdd)
 	return 0;
 }
 
-static unsigned int es209ra_sdcc_slot_status(struct device *dev)
+/*static unsigned int es209ra_sdcc_slot_status(struct device *dev)
 {
 	unsigned int ret=0;
 	if(gpio_get_value(23))
@@ -2126,7 +2131,7 @@ static struct mmc_platform_data es209ra_sdcc_data1 = {
 #ifdef CONFIG_MMC_MSM_SDC1_DUMMY52_REQUIRED
 	.dummy52_required = 1,
 #endif
-};
+};*/
 
 static struct mmc_platform_data es209ra_sdcc_data2 = {
 	.ocr_mask	= MMC_VDD_27_28 | MMC_VDD_28_29,
@@ -2156,7 +2161,7 @@ static void __init es209ra_init_mmc(void)
 #endif
 }
 
-#ifdef CONFIG_SMC91X
+/*#ifdef CONFIG_SMC91X
 static void __init es209ra_cfg_smc91x(void)
 {
 	int rc = 0;
@@ -2175,7 +2180,7 @@ static void __init es209ra_cfg_smc91x(void)
 		}
 		printk(KERN_ERR "%s: invalid machine type\n", __func__);
 }
-#endif
+#endif*/
 
 static struct msm_pm_platform_data msm_pm_data[MSM_PM_SLEEP_MODE_NR] = {
 	[MSM_PM_SLEEP_MODE_POWER_COLLAPSE] = {
@@ -2368,9 +2373,9 @@ static void __init es209ra_init(void)
 	set_predecode_repair_cache();
 	printk(KERN_ERR "PVR0F2: %x\n", get_predecode_repair_cache());
 
-#ifdef CONFIG_SMC91X
+/*#ifdef CONFIG_SMC91X
 	es209ra_cfg_smc91x();
-#endif
+#endif*/
 	acpuclk_init(&acpuclk_8x50_soc_data);
 
 

@@ -589,32 +589,61 @@ config MACH_QSD8X50_FFA
 	help
 	  Support for the Qualcomm QSD8x50 FFA eval board.
 
+config SEMC_SEPORT_PLATFORM
+	bool "SEMC Seport platform driver"
+	depends on (ARCH_SQD || ARCH_MSM) && SEMC_SEPORT
+	default n
+	help
+	  hardware dependant driver for SEMC Seport systemconnector.
+	  Requires SEMC systemconnector to be enabled!
+
+config SEMC_POWER
+	tristate "Semc power"
+	depends on POWER_SUPPLY
+	default n
+	help
+	  Enable semc battery power manager.
+
 config MACH_ES209RA
-  depends on ARCH_QSD8X50
-  depends on MSM_SOC_REV_NONE
-  depends on MSM_STACKED_MEMORY
-  default y
-  bool "QSD8x50 ES209RA (Rachael)"
-  help
-    Support for the ES209RA (Rachael) SEMC product using QSD8x50.
+	depends on ARCH_QSD8X50
+	depends on MSM_SOC_REV_NONE
+	depends on MSM_STACKED_MEMORY
+	default y
+	bool "QSD8x50 ES209RA (Rachael)"
+	help
+	  Support for the ES209RA (Rachael) SEMC product using QSD8x50.
 
 config ES209RA_HEADSET
-  bool "ES209RA headset detection driver"
-  default y if MACH_ES209RA
-  help
-    Provides support for detecting 3.5mm audio jack, such as wired
-    headset, on the es209ra platform.
+	bool "ES209RA headset detection driver"
+	default y if MACH_ES209RA
+	help
+	  Provides support for detecting 3.5mm audio jack, such as wired
+	  headset, on the es209ra platform.
 
 config ES209RA_INPUT_GPIO_MATRIX
-  bool "ES209RA GPIO key matrix driver"
-  depends on MACH_ES209RA && INPUT_GPIO
-  default y
-  help
-    Enable GPIO key matrix driver for es209ra.
-    This driver is derived from common GPIO key matrix driver(gpio_matrix.c)
-    Difference from the common driver is as follows:
-     1. Support discard timer for long key press.
-     2. Pull-up the KR line when the other KR line is being driven.
+	bool "ES209RA GPIO key matrix driver"
+	depends on MACH_ES209RA && INPUT_GPIO
+	default y
+	help
+	  Enable GPIO key matrix driver for es209ra.
+	  This driver is derived from common GPIO key matrix driver(gpio_matrix.c)
+	  Difference from the common driver is as follows:
+	   1. Support discard timer for long key press.
+	   2. Pull-up the KR line when the other KR line is being driven.
+
+config ES209RA_BYPASS_BOOTLOADER
+	bool "ES209RA Bypass BootLoader"
+	depends on MACH_ES209RA
+	default n
+	help
+	  Enable Bypass bootloader patch on the es209ra platform.
+
+config ES209RA_DISABLE_SW_VSYNC
+        bool "Disable VSYNC on ES209RA"
+        depends on MACH_ES209RA
+        default n
+        help
+          Disable the software vsync on the es209ra board.
 
 config MACH_MSM7X25_SURF
 	depends on ARCH_MSM7X25
@@ -1121,7 +1150,7 @@ config HTC_PWRSINK
 
 config QSD_SVS
 	bool "QSD Static Voltage Scaling"
-	depends on (MACH_QSD8X50_SURF || MACH_QSD8X50_FFA)
+	depends on (MACH_QSD8X50_SURF || MACH_QSD8X50_FFA || MACH_QSD8X50_COMET || MACH_QSD8X50A_SURF || MACH_QSD8X50A_FFA || MACH_ES209RA || ARCH_QSD8X50)
 	default y
 	select TPS65023
 	help
@@ -1129,7 +1158,7 @@ config QSD_SVS
 
 config QSD_PMIC_DEFAULT_DCDC1
 	int "PMIC default output voltage"
-	depends on ARCH_QSD8X50 
+	depends on (MACH_QSD8X50_SURF || MACH_QSD8X50_FFA || MACH_QSD8X50_COMET || MACH_QSD8X50A_SURF || MACH_QSD8X50A_FFA || MACH_ES209RA || ARCH_QSD8X50)
 	default 1250
 	help
 	  This is the PMIC voltage at Linux kernel boot.

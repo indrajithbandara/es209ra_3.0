@@ -15,6 +15,7 @@
 #define MSM_FB_PANEL_H
 
 #include "msm_fb_def.h"
+#include <mach/board.h>
 
 struct msm_fb_data_type;
 
