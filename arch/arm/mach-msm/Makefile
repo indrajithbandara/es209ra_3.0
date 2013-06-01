@@ -1,4 +1,16 @@
 obj-y += io.o dma.o memory.o
+ifdef CONFIG_MACH_ES209RA
+	obj-y += proc_comm.o
+	obj-y += vreg.o mpp.o
+	obj-y += vreg.o
+	obj-y += clock.o clock-pcom.o
+	obj-y += nand_partitions.o
+	obj-y += modem_notifier.o
+	obj-y += rpc_hsusb.o rpc_pmapp.o rpc_fsusb.o
+	obj-y += socinfo.o
+	obj-y += pmic.o
+	obj-y += internal_power_rail.o
+endif
 ifndef CONFIG_ARM_ARCH_TIMER
 obj-y += timer.o
 endif
@@ -337,8 +349,8 @@ endif
 
 obj-$(CONFIG_ES209RA_HEADSET) += es209ra_headset.o
 
-obj-$(CONFIG_MAX17040_FUELGAUGE) += semc_max17040_settings.o
-obj-$(CONFIG_MACH_ES209RA) += board-es209ra.o board-es209ra-keypad.o msm_vibrator.o
+# obj-$(CONFIG_MAX17040_FUELGAUGE) += semc_max17040_settings.o
+obj-$(CONFIG_MACH_ES209RA) += board-es209ra.o board-es209ra-keypad.o msm_vibrator.o semc_max17040_settings.o
 obj-$(CONFIG_SEMC_LOW_BATT_SHUTDOWN) += semc_low_batt_shutdown.o
 
 obj-$(CONFIG_ARCH_MSM8960) += mdm2.o mdm_common.o

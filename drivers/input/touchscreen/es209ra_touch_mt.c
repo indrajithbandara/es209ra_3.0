@@ -1543,7 +1543,7 @@ static int __devinit es209ra_touch_probe(struct spi_device *spi)
 		goto err_cleanup_device;
 
 	/* IRQ: request */
-	err = set_irq_type(spi->irq, IRQ_TYPE_LEVEL_LOW);
+	err = irq_set_irq_type(spi->irq, IRQ_TYPE_LEVEL_LOW);
 	if (err)
 		goto err_cleanup_device;
 	if (request_irq(spi->irq, es209ra_touch_irq, IRQF_TRIGGER_NONE,
@@ -1552,7 +1552,7 @@ static int __devinit es209ra_touch_probe(struct spi_device *spi)
 		err = -EBUSY;
 		goto err_cleanup_device;
 	}
-	err = set_irq_type(spi->irq, IRQ_TYPE_EDGE_FALLING);
+	err = irq_set_irq_type(spi->irq, IRQ_TYPE_EDGE_FALLING);
 	if (err)
 		goto err_cleanup_irq;
 

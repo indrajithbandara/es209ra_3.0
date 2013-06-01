@@ -353,6 +353,9 @@ struct i2c_algorithm {
  */
 struct i2c_adapter {
 	struct module *owner;
+#ifdef CONFIG_MAX17040_FUELGAUGE
+	unsigned int id;
+#endif
 	unsigned int class;		  /* classes to allow probing for */
 	const struct i2c_algorithm *algo; /* the algorithm to access the bus */
 	void *algo_data;

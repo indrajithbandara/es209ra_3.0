@@ -717,6 +717,13 @@ config FB_MSM_TVOUT_NONE
 	  This will disable TV Out functionality.
 endchoice
 
+config FB_MSM_MDDI_TMD_NT35580
+  depends on FB_MSM
+  tristate "MDDI NT35580 LCD FWVGA Panel"
+  select FB_MSM_MDDI
+  ---help---
+    Support for MDDI NT35580 LCD FWVGA (480x854) panel
+
 config FB_MSM_TVOUT_SVIDEO
 	bool "TVOut on S-video"
 	depends on FB_MSM_TVOUT

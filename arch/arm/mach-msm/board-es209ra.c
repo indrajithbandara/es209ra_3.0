@@ -112,7 +112,7 @@
 #include <mach/memory.h>
 #include <mach/msm_spi.h>
 #include <mach/msm_tsif.h>
-#ifdef CONFIG_MAX17040_FUELGAUGE
+#ifdef CONFIG_BATTERY_MAX17040
 #include <linux/max17040.h>
 #endif
 #ifdef CONFIG_SENSORS_AK8973
@@ -127,6 +127,7 @@
 #include "pm.h"
 #include "smd_private.h"
 #include "proc_comm.h"
+#include "cpufreq.h"
 #include <linux/msm_kgsl.h>
 #ifdef CONFIG_USB_ANDROID
 #include <linux/usb/android_composite.h>
@@ -159,9 +160,9 @@
 #define TOUCHPAD_SUSPEND 	34
 #define TOUCHPAD_IRQ 		38
 
-#define SMEM_SPINLOCK_I2C	"S:6"
-
 #define MSM_PMEM_MDP_SIZE	0x1C91000
+
+#define SMEM_SPINLOCK_I2C	"S:6"
 
 #define MSM_PMEM_ADSP_SIZE	0x2196000
 //#define MSM_FB_SIZE		0x500000
@@ -1189,7 +1190,7 @@ static void __init bt_power_init(void)
 #define bt_power_init(x) do {} while (0)
 #endif
 
-/*struct kgsl_cpufreq_voter {
+struct kgsl_cpufreq_voter {
         int idle;
         struct msm_cpufreq_voter voter;
 };
@@ -1207,7 +1208,7 @@ static struct kgsl_cpufreq_voter kgsl_cpufreq_voter = {
         .voter = {
                 .vote = kgsl_cpufreq_vote,
         },
-};*/
+};
 
 ///////////////////////////////////////////////////////////////////////
 // KGSL (HW3D support)#include <linux/android_pmem.h>
@@ -1381,7 +1382,7 @@ static struct msm_tsif_platform_data tsif_platform_data = {
 #define TPS65023_MAX_DCDC1	CONFIG_QSD_PMIC_DEFAULT_DCDC1
 #endif
 
-#ifdef CONFIG_MAX17040_FUELGAUGE
+#ifdef CONFIG_BATTERY_MAX17040
 static struct max17040_i2c_platform_data max17040_platform_data = {
 	.data = &max17040_dev_data
 };
@@ -1439,7 +1440,7 @@ static struct i2c_board_info msm_i2c_board_info[] __initdata = {
 	{
 		I2C_BOARD_INFO("tps65023", 0x48),
 	},
-#ifdef CONFIG_MAX17040_FUELGAUGE
+#ifdef CONFIG_BATTERY_MAX17040
 	{
 		I2C_BOARD_INFO("max17040_fuel_gauge", 0x36),
 		.platform_data = &max17040_platform_data,
@@ -2111,7 +2112,7 @@ static uint32_t msm_sdcc_setup_power(struct device *dv, unsigned int vdd)
 	return 0;
 }
 
-/*static unsigned int es209ra_sdcc_slot_status(struct device *dev)
+static unsigned int es209ra_sdcc_slot_status(struct device *dev)
 {
 	unsigned int ret=0;
 	if(gpio_get_value(23))
@@ -2131,7 +2132,7 @@ static struct mmc_platform_data es209ra_sdcc_data1 = {
 #ifdef CONFIG_MMC_MSM_SDC1_DUMMY52_REQUIRED
 	.dummy52_required = 1,
 #endif
-};*/
+};
 
 static struct mmc_platform_data es209ra_sdcc_data2 = {
 	.ocr_mask	= MMC_VDD_27_28 | MMC_VDD_28_29,
@@ -2365,6 +2366,7 @@ extern void smsm_wait_for_modem(void) __init;
 static void __init es209ra_init(void)
 {
 	smsm_wait_for_modem();
+
 	if (socinfo_init() < 0)
 		printk(KERN_ERR "%s: socinfo_init() failed!\n", __func__);
 	printk(KERN_INFO "%s: startup_reason: 0x%08x\n",
@@ -2397,6 +2399,9 @@ static void __init es209ra_init(void)
 	audio_gpio_init();
 	msm_device_i2c_init();
 	msm_qsd_spi_init();
+
+	msm_cpufreq_register_voter(&kgsl_cpufreq_voter.voter);
+
 	i2c_register_board_info(0, msm_i2c_board_info,
 				ARRAY_SIZE(msm_i2c_board_info));
 	spi_register_board_info(msm_spi_board_info,
