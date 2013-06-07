@@ -92,12 +92,13 @@ extern struct platform_device msm_device_sdc2;
 extern struct platform_device msm_device_sdc3;
 extern struct platform_device msm_device_sdc4;
 
+#ifdef CONFIG_MACH_ES209RA
+extern struct platform_device msm_device_hsusb_peripheral;
+#endif
 extern struct platform_device msm_device_gadget_peripheral;
 extern struct platform_device msm_device_hsusb_host;
 extern struct platform_device msm_device_hsusb_host2;
 extern struct platform_device msm_device_hsic_host;
-extern struct platform_device msm_device_hsusb_otg;
-extern struct platform_device msm_device_hsusb_peripheral;
 
 extern struct platform_device msm_device_otg;
 

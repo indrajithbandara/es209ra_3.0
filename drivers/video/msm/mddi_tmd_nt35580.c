@@ -25,7 +25,9 @@
 #include "msm_fb.h"
 #include "mddihost.h"
 #include "mddihosti.h"
-#include "mddi_tmd_nt35580.h"
+#include "msm_fb_panel.h"
+#include <linux/mddi_tmd_nt35580.h>
+#include <mach/board.h>
 
 #define SET_HORIZONTAL_ADDRESS_0	0x2A00
 #define SET_HORIZONTAL_ADDRESS_1	0x2A01
@@ -506,6 +508,7 @@ static void nt35580_lcd_power_on(struct platform_device *pdev)
 		panel->panel_ext->power_on();
 }
 
+
 static void nt35580_lcd_driver_initialization(void)
 {
 	write_client_reg(SET_HORIZONTAL_ADDRESS_0, 0x0000);
@@ -630,7 +633,6 @@ static void nt35580_lcd_power_off(struct platform_device *pdev)
 	if (panel && panel->panel_ext->power_off)
 		panel->panel_ext->power_off();
 }
-
 void mddi_nt35580_lcd_display_on(void)
 {
 	switch (lcd_state) {

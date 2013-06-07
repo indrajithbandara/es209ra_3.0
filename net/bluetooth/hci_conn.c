@@ -107,7 +107,7 @@ struct hci_conn *hci_le_connect(struct hci_dev *hdev, __u16 pkt_type,
 		cp.conn_interval_max = cpu_to_le16(BT_LE_CONN_INTERVAL_MAX_DEF);
 		cp.conn_latency = cpu_to_le16(BT_LE_LATENCY_DEF);
 		le->conn_timeout = 5;
-	
+
 	if (!bacmp(&le->dst, BDADDR_ANY)) {
 		cp.filter_policy = 0x01;
 		le->conn_timeout = 0;

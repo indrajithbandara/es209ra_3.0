@@ -832,7 +832,6 @@ static int msm_fb_blank_sub(int blank_mode, struct fb_info *info,
 			curr_pwr_state = mfd->panel_power_on;
 			mfd->panel_power_on = FALSE;
 			bl_updated = 0;
-
 #if !defined(CONFIG_FB_MSM_MDDI_TMD_NT35580)
 			msleep(16);
 #endif
@@ -1388,7 +1387,7 @@ static int msm_fb_register(struct msm_fb_data_type *mfd)
 	     mfd->index, fbi->var.xres, fbi->var.yres, fbi->fix.smem_len);
 
 #ifdef CONFIG_FB_MSM_LOGO
-  ret = load_565rle_image(INIT_IMAGE_FILE, bf_supported);  /* Flip buffer */
+	ret = load_565rle_image(INIT_IMAGE_FILE);  /* Flip buffer */
 #if defined(CONFIG_FB_MSM_MDDI_TMD_NT35580)
   if (!ret) {
     struct fb_var_screeninfo var;
@@ -3329,7 +3328,6 @@ static int msm_fb_ioctl(struct fb_info *info, unsigned int cmd,
 		else
 			mdp_ccs_yuv2rgb = ccs_matrix;
 #endif
-
 		msmfb_set_color_conv(&ccs_matrix) ;
 		up(&msm_fb_ioctl_ppp_sem);
 #else

@@ -190,8 +190,12 @@ int msm_pm_app_rpc_init(void (*callback)(int online))
 {
 	uint32_t cb_id, rc;
 
-	if (!machine_is_qsd8x50_ffa() && !machine_is_qsd8x50a_ffa()
-                       && !machine_is_msm7x27_ffa())
+#ifdef CONFIG_MACH_ES209RA
+	if (machine_is_msm7x27_surf() || machine_is_qsd8x50_surf() ||
+  machine_is_qsd8x50a_surf()) 
+#else
+	if (machine_is_msm7x27_surf() || machine_is_qsd8x50_surf())
+#endif
 		return -ENOTSUPP;
 
 	client = msm_rpc_register_client("pmapp_usb",

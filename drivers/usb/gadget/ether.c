@@ -246,11 +246,7 @@ static int __init rndis_do_config(struct usb_configuration *c)
 		c->bmAttributes |= USB_CONFIG_ATT_WAKEUP;
 	}
 
-#ifdef CONFIG_MACH_ES209RA
-	return rndis_bind_config(c, hostaddr, 0, NULL);
-#else
 	return rndis_bind_config(c, hostaddr);
-#endif
 }
 
 static struct usb_configuration rndis_config_driver = {

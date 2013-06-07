@@ -19,16 +19,6 @@
 #include <linux/threads.h>
 #include <asm/assembler.h>
 
-
-ENTRY(get_predecode_repair_cache)
-  MRC    p15, 0, r0, c15, c15, 2    //; PVR0F2
-  bx      lr
-ENTRY(set_predecode_repair_cache)
-  MRC    p15, 0, r1, c15, c15, 2    //; PVR0F2
-  ORR    r1, r1, #0x10              //; enable bit 4
-  MCR    p15, 0, r1, c15, c15, 2    //; disable predecode repair cache
-  bx      lr
-
 #ifdef CONFIG_MSM_CPU_AVS
 /* 11 general purpose registers (r4-r14), 10 cp15 registers, 3 AVS registers */
 #define CPU_SAVED_STATE_SIZE (4 * 11 + 4 * 10 + 4 * 3)
@@ -36,6 +26,16 @@ ENTRY(set_predecode_repair_cache)
 /* 11 general purpose registers (r4-r14), 10 cp15 registers */
 #define CPU_SAVED_STATE_SIZE (4 * 11 + 4 * 10)
 #endif
+
+ENTRY(get_predecode_repair_cache)
+	MRC    p15, 0, r0, c15, c15, 2    //; PVR0F2
+	bx      lr
+ENTRY(set_predecode_repair_cache)
+	MRC    p15, 0, r1, c15, c15, 2    //; PVR0F2
+	ORR    r1, r1, #0x10              //; enable bit 4
+	MCR    p15, 0, r1, c15, c15, 2    //; disable predecode repair cache
+	bx      lr
+
 #ifdef CONFIG_ARCH_MSM_KRAIT
 #define SCM_SVC_BOOT 0x1
 #define SCM_CMD_TERMINATE_PC 0x2

@@ -43,10 +43,6 @@
 #endif
 #include "mipi_dsi.h"
 
-#ifdef CONFIG_FB_MSM_MDDI_TMD_NT35580
-#include "mddi_tmd_nt35580.h"
-#endif
-
 uint32 mdp4_extn_disp;
 
 static struct clk *mdp_clk;
@@ -1743,15 +1739,12 @@ irqreturn_t mdp_isr(int irq, void *ptr)
 				mdp_dma2_timeval.tv_usec =
 				    now.tv_usec - mdp_dma2_timeval.tv_usec;
 			}
-#ifndef CONFIG_FB_MSM_MDP31
+#ifndef CONFIG_FB_MSM_MDP303
 			dma = &dma2_data;
 			dma->busy = FALSE;
 			mdp_pipe_ctrl(MDP_DMA2_BLOCK, MDP_BLOCK_POWER_OFF,
 				      TRUE);
 			complete(&dma->comp);
-#ifdef CONFIG_FB_MSM_MDDI_TMD_NT35580
-			mddi_nt35580_lcd_display_on();
-#endif
 #else
 			if (mdp_prim_panel_type == MIPI_CMD_PANEL) {
 				dma = &dma2_data;

@@ -33,14 +33,14 @@
 #include "msm_fb.h"
 #include "mddihost.h"
 
+#ifdef CONFIG_FB_MSM_MDDI_TMD_NT35580
 //#include <linux/autoconf.h>
 
-#ifdef CONFIG_FB_MSM_MDDI_TMD_NT35580
-#include "mddi_tmd_nt35580.h"
-#endif
+#include <linux/mddi_tmd_nt35580.h>
 
 /* SEMC added. Todo: Remove. For temporary patch in mdp_dma2_update_lcd */
 #include <generated/autoconf.h>
+#endif
 
 static uint32 mdp_last_dma2_update_width;
 static uint32 mdp_last_dma2_update_height;
@@ -76,7 +76,7 @@ static void mdp_dma2_update_lcd(struct msm_fb_data_type *mfd)
 #endif
 	uint32 ystride = mfd->fbi->fix.line_length;
 	uint32 mddi_pkt_desc;
-#ifndef CONFIG_FB_MSM_MDDI_TMD_NT35580
+#if defined(CONFIG_FB_MSM_MDDI_TMD_NT35580)
   if (iBuf->dma_h == mfd->panel_info.yres)
     mddi_nt35580_lcd_display_on();
 #endif
@@ -150,7 +150,7 @@ static void mdp_dma2_update_lcd(struct msm_fb_data_type *mfd)
 			dma2_cfg_reg |= DMA_MDDI_DMAOUT_LCD_SEL_EXTERNAL;
 			mddi_ld_param = 2;
 		}
-#ifdef CONFIG_FB_MSM_MDP31
+#ifdef CONFIG_FB_MSM_MDP303
 	} else if (mfd->panel_info.type == MIPI_CMD_PANEL) {
 		cmd_mode = TRUE;
 		dma2_cfg_reg |= DMA_OUT_SEL_DSI_CMD;
@@ -172,7 +172,7 @@ static void mdp_dma2_update_lcd(struct msm_fb_data_type *mfd)
 	mdp_curr_dma2_update_width = iBuf->dma_w;
 	mdp_curr_dma2_update_height = iBuf->dma_h;
 
-	/* MDP cmd block enable */
+  	/* MDP cmd block enable */
 	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_ON, FALSE);
 
 #ifdef CONFIG_FB_MSM_MDP22

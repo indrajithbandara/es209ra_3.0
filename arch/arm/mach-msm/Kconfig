@@ -557,14 +557,14 @@ config MACH_SEMC_HALLON
 	help
 	  Support for the SonyEricsson Hallon devices.
 
-config MACH_SEMC_SATSUMA
-	depends on ARCH_MSM7X30
-	depends on !MSM_STACKED_MEMORY
-	select SUPPORT_ALIEN_USB_CHARGER
+config MACH_ES209RA
+	depends on ARCH_QSD8X50
+	depends on MSM_SOC_REV_NONE
+	depends on MSM_STACKED_MEMORY
 	default y
-	bool "SonyEricsson Satsuma"
+	bool "QSD8x50 ES209RA (Rachael)"
 	help
-	  Support for the SonyEricsson Satsuma devices.
+	  Support for the ES209RA (Rachael) SEMC product using QSD8x50.
 
 config MACH_SAPPHIRE
 	depends on ARCH_MSM7X01A
@@ -588,6 +588,22 @@ config MACH_QSD8X50_FFA
 	bool "QSD8x50 FFA"
 	help
 	  Support for the Qualcomm QSD8x50 FFA eval board.
+
+config MACH_MSM7X25_SURF
+	depends on ARCH_MSM7X25
+	depends on !MSM_STACKED_MEMORY
+	default y
+	bool "MSM7x25 SURF"
+	help
+	  Support for the Qualcomm MSM7x25 SURF eval board.
+
+config MACH_MSM7X25_FFA
+	depends on ARCH_MSM7X25
+	depends on !MSM_STACKED_MEMORY
+	default y
+	bool "MSM7x25 FFA"
+	help
+	  Support for the Qualcomm MSM7x25 FFA eval board.
 
 config SEMC_SEPORT_PLATFORM
 	bool "SEMC Seport platform driver"
@@ -644,22 +660,6 @@ config ES209RA_DISABLE_SW_VSYNC
         default n
         help
           Disable the software vsync on the es209ra board.
-
-config MACH_MSM7X25_SURF
-	depends on ARCH_MSM7X25
-	depends on !MSM_STACKED_MEMORY
-	default y
-	bool "MSM7x25 SURF"
-	help
-	  Support for the Qualcomm MSM7x25 SURF eval board.
-
-config MACH_MSM7X25_FFA
-	depends on ARCH_MSM7X25
-	depends on !MSM_STACKED_MEMORY
-	default y
-	bool "MSM7x25 FFA"
-	help
-	  Support for the Qualcomm MSM7x25 FFA eval board.
 
 config MACH_MSM8X55_SURF
        depends on ARCH_MSM7X30
@@ -1150,7 +1150,7 @@ config HTC_PWRSINK
 
 config QSD_SVS
 	bool "QSD Static Voltage Scaling"
-	depends on (MACH_QSD8X50_SURF || MACH_QSD8X50_FFA || MACH_QSD8X50_COMET || MACH_QSD8X50A_SURF || MACH_QSD8X50A_FFA || MACH_ES209RA || ARCH_QSD8X50)
+	depends on ARCH_QSD8X50
 	default y
 	select TPS65023
 	help
@@ -1158,7 +1158,7 @@ config QSD_SVS
 
 config QSD_PMIC_DEFAULT_DCDC1
 	int "PMIC default output voltage"
-	depends on (MACH_QSD8X50_SURF || MACH_QSD8X50_FFA || MACH_QSD8X50_COMET || MACH_QSD8X50A_SURF || MACH_QSD8X50A_FFA || MACH_ES209RA || ARCH_QSD8X50)
+	depends on ARCH_QSD8X50
 	default 1250
 	help
 	  This is the PMIC voltage at Linux kernel boot.

@@ -80,11 +80,15 @@
 #include <linux/kernel.h>
 #include <linux/irq.h>
 #include <linux/gpio.h>
+#include <linux/gpio_event.h>
 #include <linux/platform_device.h>
+#include <linux/delay.h>
 #include <linux/android_pmem.h>
 #include <linux/bootmem.h>
 #include <linux/i2c.h>
+#ifdef CONFIG_SPI_QSD
 #include <linux/spi/spi.h>
+#endif
 #include <linux/delay.h>
 #include <linux/mfd/tps65023.h>
 #include <linux/power_supply.h>
@@ -94,6 +98,12 @@
 #include <asm/mach/arch.h>
 #include <asm/io.h>
 #include <asm/setup.h>
+
+#include <mach/msm_iomap.h>
+#include <mach/msm_serial_debugger.h>
+#include <mach/system.h>
+#include <mach/msm_serial_hs.h>
+#include <mach/bcm_bt_lpm.h>
 
 #include <asm/mach/mmc.h>
 #include <mach/vreg.h>
@@ -116,18 +126,18 @@
 #include <linux/max17040.h>
 #endif
 #ifdef CONFIG_SENSORS_AK8973
-#include <linux/akm8973.h>
+#include <linux/i2c/akm8973.h>
 #endif
 
 #include "devices.h"
 #include "timer.h"
 #include "mach/socinfo.h"
+#include <mach/msm_memtypes.h>
 #include "msm-keypad-devices.h"
 #include "acpuclock.h"
 #include "pm.h"
 #include "smd_private.h"
 #include "proc_comm.h"
-#include "cpufreq.h"
 #include <linux/msm_kgsl.h>
 #ifdef CONFIG_USB_ANDROID
 #include <linux/usb/android_composite.h>
@@ -140,7 +150,9 @@
 #include <linux/spi/es209ra_touch.h>
 #include <asm/setup.h>
 #include "qdsp6/q6audio.h"
-#include <../../../drivers/video/msm/mddi_tmd_nt35580.h>
+#ifdef CONFIG_FB_MSM_MDDI_TMD_NT35580
+#include <linux/mddi_tmd_nt35580.h>
+#endif
 #ifdef CONFIG_SEMC_LOW_BATT_SHUTDOWN
 #include <mach/semc_low_batt_shutdown.h>
 #endif /* CONFIG_SEMC_LOW_BATT_SHUTDOWN */
@@ -165,9 +177,10 @@
 #define SMEM_SPINLOCK_I2C	"S:6"
 
 #define MSM_PMEM_ADSP_SIZE	0x2196000
-//#define MSM_FB_SIZE		0x500000
+
 #define MSM_AUDIO_SIZE		0x80000
 #define MSM_GPU_PHYS_SIZE 	SZ_2M
+#define MSM_PMEM_VENC_SIZE 0x00800000
 
 #ifdef CONFIG_MSM_SOC_REV_A
 #define MSM_SMI_BASE		0xE0000000
@@ -206,14 +219,14 @@
 #define MSM_RAM_CONSOLE_SIZE    128 * SZ_1K
 #endif
 
-#ifdef CONFIG_CAPTURE_KERNEL
+/*#ifdef CONFIG_CAPTURE_KERNEL
 #define AMSSCORE_RAM_START 0x00000000
 #define AMSSCORE_RAM_END   0x03FFFFFF
 #define SMEMCORE_RAM_START 0x00100000
 #define SMEMCORE_RAM_END   0x001FFFFF
 #define ADSPCORE_RAM_START 0x2E000000
 #define ADSPCORE_RAM_END   0x2FFFFFFF
-#endif
+#endif*/
 
 #ifdef CONFIG_SEMC_MSM_PMIC_VIBRATOR
 static int msm7227_platform_set_vib_voltage(u16 volt_mv)
@@ -479,7 +492,7 @@ static struct android_pmem_platform_data android_pmem_kernel_smi_pdata = {
 
 #endif
 
-#ifdef CONFIG_CAPTURE_KERNEL
+/*#ifdef CONFIG_CAPTURE_KERNEL
 static struct resource kdump_amsscoredump_resources[] = {
 	{
 		.name   = "amsscore0",
@@ -507,7 +520,7 @@ static struct platform_device kdump_amsscoredump_device = {
 	.num_resources  = ARRAY_SIZE(kdump_amsscoredump_resources),
 	.resource       = kdump_amsscoredump_resources,
 };
-#endif
+#endif*/
 
 static struct android_pmem_platform_data android_pmem_pdata = {
 	.name = "pmem",
@@ -519,6 +532,13 @@ static struct android_pmem_platform_data android_pmem_adsp_pdata = {
 	.name = "pmem_adsp",
 	.allocator_type = PMEM_ALLOCATORTYPE_BITMAP,
 	.cached = 0,
+};
+
+static struct android_pmem_platform_data android_pmem_venc_pdata = {
+	.name = "pmem_venc",
+	.allocator_type = PMEM_ALLOCATORTYPE_BITMAP,
+	.cached = 1,
+	.memory_type = MEMTYPE_EBI1,
 };
 
 static struct platform_device android_pmem_device = {
@@ -546,6 +566,12 @@ static struct platform_device android_pmem_kernel_smi_device = {
 	.dev = { .platform_data = &android_pmem_kernel_smi_pdata },
 };
 #endif
+
+static struct platform_device android_pmem_venc_device = {
+	.name = "android_pmem",
+	.id = 5,
+	.dev = { .platform_data = &android_pmem_venc_pdata },
+};
 
 static struct resource msm_fb_resources[] = {
 	{
@@ -813,7 +839,7 @@ static void tmd_wvga_lcd_power_off(void)
 	local_irq_enable();
 }
 
-static struct panel_data_ext tmd_wvga_panel_ext = {
+static struct tmd_wvga_panel_data tmd_wvga_panel_ext = {
 	.power_on = tmd_wvga_lcd_power_on,
 	.power_off = tmd_wvga_lcd_power_off,
 };
@@ -821,8 +847,10 @@ static struct panel_data_ext tmd_wvga_panel_ext = {
 static struct msm_fb_panel_data tmd_wvga_panel_data;
 
 static struct platform_device mddi_tmd_wvga_display_device = {
-	.name = "mddi_tmd_wvga",
-	.id = -1,
+	.name = MDDI_TMD_WVGA_NAME,
+	.id = -1,{
+		.platform_data = &tmd_wvga_panel_ext,
+	}
 };
 
 static void __init msm_mddi_tmd_fwvga_display_device_init(void)
@@ -852,8 +880,6 @@ static void __init msm_mddi_tmd_fwvga_display_device_init(void)
 	panel_data->panel_info.lcd.vsync_notifier_period = 0;
 
 	panel_data->panel_info.lcd.refx100 = 100000000 / 16766;
-
-	panel_data->panel_ext = &tmd_wvga_panel_ext;
 
 	mddi_tmd_wvga_display_device.dev.platform_data =
 						&tmd_wvga_panel_data;
@@ -1190,26 +1216,6 @@ static void __init bt_power_init(void)
 #define bt_power_init(x) do {} while (0)
 #endif
 
-struct kgsl_cpufreq_voter {
-        int idle;
-        struct msm_cpufreq_voter voter;
-};
-
-static int kgsl_cpufreq_vote(struct msm_cpufreq_voter *v)
-{
-        struct kgsl_cpufreq_voter *kv =
-                        container_of(v, struct kgsl_cpufreq_voter, voter);
-
-        return kv->idle ? MSM_CPUFREQ_IDLE : MSM_CPUFREQ_ACTIVE;
-}
-
-static struct kgsl_cpufreq_voter kgsl_cpufreq_voter = {
-        .idle = 1,
-        .voter = {
-                .vote = kgsl_cpufreq_vote,
-        },
-};
-
 ///////////////////////////////////////////////////////////////////////
 // KGSL (HW3D support)#include <linux/android_pmem.h>
 ///////////////////////////////////////////////////////////////////////
@@ -1229,7 +1235,7 @@ static int es209ra_kgsl_power(bool on)
         return msm_proc_comm(cmd, &rail_id, 0);
 }
 
-/* start kgsl-3d0 */
+/* start kgsl-3d0 
 static struct resource kgsl_3d0_resources[] = {
         {
                 .name  = KGSL_3D0_REG_MEMORY,
@@ -1277,7 +1283,7 @@ struct platform_device msm_kgsl_3d0 = {
                 .platform_data = &kgsl_3d0_pdata,
         },
 };
-/* end kgsl-3d0 */
+end kgsl-3d0 */
 /*
 
 
@@ -1884,6 +1890,7 @@ static struct platform_device *devices[] __initdata = {
 #endif
 	&android_pmem_device,
 	&android_pmem_adsp_device,
+	&android_pmem_venc_device,
 	&msm_device_nand,
 	&msm_device_i2c,
 	&qsd_device_spi,
@@ -1942,9 +1949,9 @@ static struct platform_device *devices[] __initdata = {
 #ifdef CONFIG_SEMC_LOW_BATT_SHUTDOWN
 	&lbs_device,
 #endif /* CONFIG_SEMC_LOW_BATT_SHUTDOWN */
-#ifdef CONFIG_CAPTURE_KERNEL
+/*#ifdef CONFIG_CAPTURE_KERNEL
 	&kdump_amsscoredump_device,
-#endif
+#endif*/
 #ifdef CONFIG_PMIC_TIME
 	&pmic_time_device,
 #endif
@@ -1956,11 +1963,11 @@ static char *usb_functions_adb_acm[] = {
 #endif
 };
 
-static void __init es209ra_init_irq(void)
+/*static void __init es209ra_init_irq(void)
 {
 	msm_init_irq();
 	msm_init_sirc();
-}
+}*/
 
 static void __init es209ra_init_usb(void)
 {
@@ -2315,11 +2322,28 @@ __early_param("pmem_kernel_smi_size=", pmem_kernel_smi_size_setup);
 #endif
 
 static unsigned pmem_mdp_size = MSM_PMEM_MDP_SIZE;
-static void __init pmem_mdp_size_setup(char **p)
+static int __init pmem_mdp_size_setup(char *p)
 {
-	pmem_mdp_size = memparse(*p, p);
+	pmem_mdp_size = memparse(p, NULL);
+	return 0;
 }
-__early_param("pmem_mdp_size=", pmem_mdp_size_setup);
+early_param("pmem_mdp_size", pmem_mdp_size_setup);
+
+static unsigned pmem_venc_size = MSM_PMEM_VENC_SIZE;
+static int __init pmem_venc_size_setup(char *p)
+{
+	pmem_venc_size = memparse(p, NULL);
+	return 0;
+}
+early_param("pmem_venc_size", pmem_venc_size_setup);
+
+static unsigned fb_size;
+static int __init fb_size_setup(char *p)
+{
+	fb_size = memparse(p, NULL);
+	return 0;
+}
+early_param("fb_size", fb_size_setup);
 
 static unsigned pmem_adsp_size = MSM_PMEM_ADSP_SIZE;
 static void __init pmem_adsp_size_setup(char **p)
@@ -2327,6 +2351,71 @@ static void __init pmem_adsp_size_setup(char **p)
 	pmem_adsp_size = memparse(*p, p);
 }
 __early_param("pmem_adsp_size=", pmem_adsp_size_setup);
+
+static struct memtype_reserve qsd8x50_reserve_table[] __initdata = {
+	[MEMTYPE_SMI] = {
+	},
+	[MEMTYPE_EBI0] = {
+		.flags	=	MEMTYPE_FLAGS_1M_ALIGN,
+	},
+	[MEMTYPE_EBI1] = {
+		.flags	=	MEMTYPE_FLAGS_1M_ALIGN,
+	},
+};
+
+static void __init size_pmem_device(struct android_pmem_platform_data *pdata, unsigned long start, unsigned long size)
+{
+  pdata->size = size;
+  pr_info("%s: pmem %s requests %lu bytes dynamically.\n",
+      __func__, pdata->name, size);
+}
+
+static void __init size_pmem_devices(void)
+{
+#ifdef CONFIG_ANDROID_PMEM
+  size_pmem_device(&android_pmem_adsp_pdata, 0, pmem_adsp_size);
+  size_pmem_device(&android_pmem_pdata, 0, pmem_mdp_size);
+  size_pmem_device(&android_pmem_venc_pdata, 0, pmem_venc_size);
+  qsd8x50_reserve_table[MEMTYPE_EBI1].size += PMEM_KERNEL_EBI1_SIZE;
+#endif
+}
+
+static void __init reserve_memory_for(struct android_pmem_platform_data *p)
+{
+  pr_info("%s: reserve %lu bytes from memory %d for %s.\n", __func__, p->size, p->memory_type, p->name);
+  qsd8x50_reserve_table[p->memory_type].size += p->size;
+}
+
+static void __init reserve_pmem_memory(void)
+{
+#ifdef CONFIG_ANDROID_PMEM
+	reserve_memory_for(&android_pmem_adsp_pdata);
+	reserve_memory_for(&android_pmem_pdata);
+#endif
+}
+
+static void __init qsd8x50_calculate_reserve_sizes(void)
+{
+	size_pmem_devices();
+	reserve_pmem_memory();
+}
+
+static int qsd8x50_paddr_to_memtype(unsigned int paddr)
+{
+	return MEMTYPE_EBI1;
+}
+
+static struct reserve_info qsd8x50_reserve_info __initdata = {
+	.memtype_reserve_table = qsd8x50_reserve_table,
+	.calculate_reserve_sizes = qsd8x50_calculate_reserve_sizes,
+	.paddr_to_memtype = qsd8x50_paddr_to_memtype,
+};
+
+static void __init qsd8x50_reserve(void)
+{
+	reserve_info = &qsd8x50_reserve_info;
+	msm_reserve();
+}
 
 static unsigned audio_size = MSM_AUDIO_SIZE;
 static void __init audio_size_setup(char **p)
@@ -2400,8 +2489,6 @@ static void __init es209ra_init(void)
 	msm_device_i2c_init();
 	msm_qsd_spi_init();
 
-	msm_cpufreq_register_voter(&kgsl_cpufreq_voter.voter);
-
 	i2c_register_board_info(0, msm_i2c_board_info,
 				ARRAY_SIZE(msm_i2c_board_info));
 	spi_register_board_info(msm_spi_board_info,
@@ -2419,21 +2506,32 @@ static void __init es209ra_init(void)
 	msm_mddi_tmd_fwvga_display_device_init();
 }
 
-#ifndef CONFIG_CAPTURE_KERNEL
 static void __init es209ra_allocate_memory_regions(void)
 {
 	void *addr;
 	unsigned long size;
 
-	size = pmem_kernel_ebi1_size;
-	if (size) {
-		addr = alloc_bootmem_aligned(size, 0x100000);
-		android_pmem_kernel_ebi1_pdata.size = size;
-		pr_info("allocating %lu bytes at %p (%lx physical) for kernel"
-			" ebi1 pmem arena\n", size, addr, __pa(addr));
-	}
+	size = fb_size ? : MSM_FB_SIZE;
+	addr = alloc_bootmem_align(size, 0x1000);
+	msm_fb_resources[0].start = __pa(addr);
+	msm_fb_resources[0].end = msm_fb_resources[0].start + size - 1;
+	pr_info("allocating %lu bytes at %p (%lx physical) for fb\n",
+		size, addr, __pa(addr));
 
-#ifdef CONFIG_KERNEL_PMEM_SMI_REGION
+#ifdef CONFIG_ANDROID_RAM_CONSOLE
+	/* RAM Console can't use alloc_bootmem(), since that zeroes the
+	 * region */
+	size = MSM_RAM_CONSOLE_SIZE;
+	ram_console_resources[0].start = msm_fb_resources[0].end+1;
+	ram_console_resources[0].end = ram_console_resources[0].start + size - 1;
+	pr_info("allocating %lu bytes at (%lx physical) for ram console\n",
+		size, (unsigned long)ram_console_resources[0].start);
+	/* We still have to reserve it, though */
+	reserve_bootmem(ram_console_resources[0].start,size,0);
+#endif
+}
+
+/*#ifdef CONFIG_KERNEL_PMEM_SMI_REGION
 	size = pmem_kernel_smi_size;
 	if (size > MSM_PMEM_SMIPOOL_SIZE) {
 		printk(KERN_ERR "pmem kernel smi arena size %lu is too big\n",
@@ -2480,9 +2578,9 @@ static void __init es209ra_allocate_memory_regions(void)
 	msm_audio_resources[0].end = msm_audio_resources[0].start + size - 1;
 	pr_info("allocating %lu bytes at %p (%lx physical) for audio\n",
 		size, addr, __pa(addr));
-}
+}*/
 
-static void __init es209ra_fixup(struct machine_desc *desc, struct tag *tags,
+/*static void __init es209ra_fixup(struct machine_desc *desc, struct tag *tags,
                                char **cmdline, struct meminfo *mi)
 {
 	mi->nr_banks=2;
@@ -2491,22 +2589,20 @@ static void __init es209ra_fixup(struct machine_desc *desc, struct tag *tags,
 
 	mi->bank[1].start = 0x30000000;
 	mi->bank[1].size = (127*1024*1024);
-}
-#endif
+}*/
 
 static void __init es209ra_map_io(void)
 {
-	msm_shared_ram_phys = MSM_SHARED_RAM_PHYS;
-	msm_map_qsd8x50_io();
-#ifndef CONFIG_CAPTURE_KERNEL
-	es209ra_allocate_memory_regions();
-#endif
-	msm_clock_init(&qds8x50_clock_init_data);
+	msm_shared_ram_phys = 0x00100000;
+    	printk("es209ra_map_io()\n");
+    	msm_map_qsd8x50_io();
+
+	if (socinfo_init() < 0)
+		printk(KERN_ERR "%s: socinfo_init() failed!\n",
+		       __func__);
 }
 
-static int __init board_serialno_setup(char *serialno)
-{
-#ifdef CONFIG_USB_ANDROID
+/*#ifdef CONFIG_USB_ANDROID
 	int i;
 	char *src = serialno;
 	android_usb_pdata.serial_number = serialno;
@@ -2516,24 +2612,21 @@ static int __init board_serialno_setup(char *serialno)
 	for (i = 0; *src; i++)
 		rndis_pdata.ethaddr[i % (ETH_ALEN -1)+1] ^= *src++;
 #endif
+static int __init board_serialno_setup(char *serialno)
+{
 	return 1;
 }
 __setup_param("serialno=", board_serialno_setup_1, board_serialno_setup, 0);
-__setup_param("semcandroidboot.serialno=", board_serialno_setup_2, board_serialno_setup, 0);
+__setup_param("semcandroidboot.serialno=", board_serialno_setup_2, board_serialno_setup, 0);*/
 
 MACHINE_START(ES209RA, "ES209RA")
-#ifdef CONFIG_MSM_DEBUG_UART
-	.phys_io  = MSM_DEBUG_UART_PHYS,
-	.io_pg_offst = ((MSM_DEBUG_UART_BASE) >> 18) & 0xfffc,
-#endif
-#ifdef CONFIG_CAPTURE_KERNEL
-	.boot_params    = PHYS_OFFSET + 0x1000,
-#else
 	.boot_params	= PHYS_OFFSET + 0x100,
-	.fixup          = es209ra_fixup,
-#endif
 	.map_io		= es209ra_map_io,
-	.init_irq	= es209ra_init_irq,
+	.reserve 	= qsd8x50_reserve,
+	.init_irq	= msm_init_irq,
 	.init_machine	= es209ra_init,
-	.timer = &msm_timer,
+	.timer 		= &msm_timer,
+	.init_early 	= es209ra_allocate_memory_regions,
+	//.handle_irq 	= vic_handle_irq,	
+	//.fixup          = es209ra_fixup,
 MACHINE_END

@@ -143,7 +143,7 @@ enum {
 
 enum {
 	PCOM_OEM_FIRST_CMD = 0x10000000,
-//#ifdef CONFIG_MACH_ES209RA
+#ifdef CONFIG_ES209RA_HEADSET
     /* SEMC:LC: Added the pcom IDs START */
     PCOM_SET_HEADSET_ADC_OPT,
     PCOM_SET_HEADSET_ADC_THRESHOLD_OPT,
@@ -154,10 +154,8 @@ enum {
     PCOM_HEADSET_SUSPEND,
     PCOM_HEADSET_RESUME,
     /* SEMC:LC: Added the pcom IDs END */
-    PCOM_OEM_LAST = PCOM_HEADSET_RESUME,
-//#else
+#endif
 	PCOM_OEM_TEST_CMD = PCOM_OEM_FIRST_CMD,
-//#endif
 
 	/* add OEM PROC COMM commands here */
 	/* BEGIN: ID:s for 3.5mm Audio Jack driver */
@@ -165,8 +163,11 @@ enum {
 	PCOM_OEM_ENABLE_HSED_ISR,
 	PCOM_OEM_GET_CRADLE_ADC_VALUE,
 	/* END: ID:s for 3.5mm Audio Jack driver */
-
-	/*PCOM_OEM_LAST = PCOM_OEM_GET_CRADLE_ADC_VALUE,*/
+#ifdef CONFIG_ES209RA_HEADSET
+    	PCOM_OEM_LAST = PCOM_HEADSET_RESUME,
+#else
+	PCOM_OEM_LAST = PCOM_OEM_GET_CRADLE_ADC_VALUE,
+#endif
 };
 
 enum {

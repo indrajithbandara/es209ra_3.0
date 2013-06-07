@@ -127,6 +127,7 @@ struct msm_hsusb_gadget_platform_data {
 	int is_phy_status_timer_on;
 };
 
+#ifdef CONFIG_MACH_ES209RA
 struct msm_hsusb_platform_data {
 	__u16   version;
 	unsigned phy_info;
@@ -151,6 +152,7 @@ struct msm_hsusb_platform_data {
 
 	u32 swfi_latency;
 };
+#endif
 
 struct msm_otg_platform_data {
 	int (*rpc_connect)(int);
@@ -176,7 +178,9 @@ struct msm_otg_platform_data {
 	 * now being disabled because of H/w issues
 	 */
 	int			pclk_is_hw_gated;
+#ifdef CONFIG_MACH_ES209RA
 	char			*pclk_src_name;
+#endif
 
 	int (*ldo_init) (int init);
 	int (*ldo_enable) (int enable);

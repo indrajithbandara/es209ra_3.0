@@ -507,7 +507,8 @@ void mdp_vsync_config_update(struct msm_panel_info *pinfo)
 	cfg &= (0xfff80000);
 	cfg |= vsync_cnt_cfg;
 	MDP_OUTP(MDP_BASE + MDP_SYNC_CFG_0, cfg);
-
+#ifndef CONFIG_MACH_ES209RA
+	MDP_OUTP(MDP_BASE + MDP_SYNC_CFG_1, cfg);
+#endif
 	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
 }
-
