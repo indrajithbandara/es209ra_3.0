@@ -303,7 +303,7 @@ static int irq_expand_nr_irqs(unsigned int nr)
  * generic_handle_irq - Invoke the handler for a particular irq
  * @irq:	The irq number to handle
  *
- */
+ 
 int generic_handle_irq(unsigned int irq)
 {
 	struct irq_desc *desc = irq_to_desc(irq);
@@ -313,7 +313,7 @@ int generic_handle_irq(unsigned int irq)
 	generic_handle_irq_desc(irq, desc);
 	return 0;
 }
-EXPORT_SYMBOL_GPL(generic_handle_irq);
+EXPORT_SYMBOL_GPL(generic_handle_irq);*/
 
 /* Dynamic interrupt handling */
 

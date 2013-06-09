@@ -75,7 +75,22 @@
 
 #define IRQF_TIMER		(__IRQF_TIMER | IRQF_NO_SUSPEND | IRQF_NO_THREAD)
 
+
 /*
+ * Bits used by threaded handlers:
+ * IRQTF_RUNTHREAD - signals that the interrupt handler thread should run
+ * IRQTF_DIED      - handler thread died
+ * IRQTF_WARNED    - warning "IRQ_WAKE_THREAD w/o thread_fn" has been printed
+ * IRQTF_AFFINITY  - irq thread is requested to adjust affinity
+ 
+enum {
+	IRQTF_RUNTHREAD,
+	IRQTF_DIED,
+	IRQTF_WARNED,
+	IRQTF_AFFINITY,
+};*/
+
+/**
  * These values can be returned by request_any_context_irq() and
  * describe the context the interrupt will be run in.
  *
@@ -170,18 +185,10 @@ request_any_context_irq(unsigned int irq, irq_handler_t handler,
 	return request_irq(irq, handler, flags, name, dev_id);
 }
 
-static inline int __must_check
-request_percpu_irq(unsigned int irq, irq_handler_t handler,
-		   const char *devname, void __percpu *percpu_dev_id)
-{
-	return request_irq(irq, handler, 0, devname, percpu_dev_id);
-}
-
 static inline void exit_irq_thread(void) { }
 #endif
 
 extern void free_irq(unsigned int, void *);
-extern void free_percpu_irq(unsigned int, void __percpu *);
 
 struct device;
 
@@ -221,7 +228,6 @@ extern void devm_free_irq(struct device *dev, unsigned int irq, void *dev_id);
 
 extern void disable_irq_nosync(unsigned int irq);
 extern void disable_irq(unsigned int irq);
-extern void disable_percpu_irq(unsigned int irq);
 extern void enable_irq(unsigned int irq);
 extern void enable_percpu_irq(unsigned int irq, unsigned int type);
 
@@ -248,36 +254,6 @@ extern int irq_set_affinity(unsigned int irq, const struct cpumask *cpumask);
 extern int irq_can_set_affinity(unsigned int irq);
 extern int irq_select_affinity(unsigned int irq);
 
-extern int irq_set_affinity_hint(unsigned int irq, const struct cpumask *m);
-
-/**
- * struct irq_affinity_notify - context for notification of IRQ affinity changes
- * @irq:		Interrupt to which notification applies
- * @kref:		Reference count, for internal use
- * @work:		Work item, for internal use
- * @notify:		Function to be called on change.  This will be
- *			called in process context.
- * @release:		Function to be called on release.  This will be
- *			called in process context.  Once registered, the
- *			structure must only be freed when this function is
- *			called or later.
- */
-struct irq_affinity_notify {
-	unsigned int irq;
-	struct kref kref;
-	struct work_struct work;
-	void (*notify)(struct irq_affinity_notify *, const cpumask_t *mask);
-	void (*release)(struct kref *ref);
-};
-
-extern int
-irq_set_affinity_notifier(unsigned int irq, struct irq_affinity_notify *notify);
-
-static inline void irq_run_affinity_notifiers(void)
-{
-	flush_scheduled_work();
-}
-
 #else /* CONFIG_SMP */
 
 static inline int irq_set_affinity(unsigned int irq, const struct cpumask *m)
@@ -292,11 +268,6 @@ static inline int irq_can_set_affinity(unsigned int irq)
 
 static inline int irq_select_affinity(unsigned int irq)  { return 0; }
 
-static inline int irq_set_affinity_hint(unsigned int irq,
-					const struct cpumask *m)
-{
-	return -EINVAL;
-}
 #endif /* CONFIG_SMP && CONFIG_GENERIC_HARDIRQS */
 
 #ifdef CONFIG_GENERIC_HARDIRQS
@@ -392,7 +363,6 @@ static inline int disable_irq_wake(unsigned int irq)
 }
 #endif /* CONFIG_GENERIC_HARDIRQS */
 
-
 #ifdef CONFIG_IRQ_FORCED_THREADING
 extern bool force_irqthreads;
 #else
@@ -431,7 +401,7 @@ enum
 	TASKLET_SOFTIRQ,
 	SCHED_SOFTIRQ,
 	HRTIMER_SOFTIRQ,
-	RCU_SOFTIRQ,    /* Preferable RCU should always be the last softirq */
+	RCU_SOFTIRQ,	/* Preferable RCU should always be the last softirq */
 
 	NR_SOFTIRQS
 };
@@ -454,14 +424,10 @@ asmlinkage void do_softirq(void);
 asmlinkage void __do_softirq(void);
 extern void open_softirq(int nr, void (*action)(struct softirq_action *));
 extern void softirq_init(void);
-static inline void __raise_softirq_irqoff(unsigned int nr)
-{
-	trace_softirq_raise(nr);
-	or_softirq_pending(1UL << nr);
-}
-
+#define __raise_softirq_irqoff(nr) do { or_softirq_pending(1UL << (nr)); } while (0)
 extern void raise_softirq_irqoff(unsigned int nr);
 extern void raise_softirq(unsigned int nr);
+//extern void wakeup_softirqd(void);
 
 /* This is the worklist that queues up per-cpu softirq work.
  *
@@ -471,13 +437,6 @@ extern void raise_softirq(unsigned int nr);
  * only be accessed by the local cpu that they are for.
  */
 DECLARE_PER_CPU(struct list_head [NR_SOFTIRQS], softirq_work_list);
-
-DECLARE_PER_CPU(struct task_struct *, ksoftirqd);
-
-static inline struct task_struct *this_cpu_ksoftirqd(void)
-{
-	return this_cpu_read(ksoftirqd);
-}
 
 /* Try to send a softirq to a remote cpu.  If this cannot be done, the
  * work will be queued to the local cpu.
@@ -501,7 +460,7 @@ extern void __send_remote_softirq(struct call_single_data *cp, int cpu,
    Properties:
    * If tasklet_schedule() is called, then tasklet is guaranteed
      to be executed on some cpu at least once after this.
-   * If the tasklet is already scheduled, but its execution is still not
+   * If the tasklet is already scheduled, but its excecution is still not
      started, it will be executed only once.
    * If this tasklet is already running on another CPU (or schedule is called
      from tasklet itself), it is rescheduled for later.
@@ -696,12 +655,20 @@ static inline void init_irq_proc(void)
 }
 #endif
 
+#if defined(CONFIG_GENERIC_HARDIRQS) && defined(CONFIG_DEBUG_SHIRQ)
+extern void debug_poll_all_shared_irqs(void);
+#else
+static inline void debug_poll_all_shared_irqs(void) { }
+#endif
+
 struct seq_file;
 int show_interrupts(struct seq_file *p, void *v);
-int arch_show_interrupts(struct seq_file *p, int prec);
+
+struct irq_desc;
 
 extern int early_irq_init(void);
 extern int arch_probe_nr_irqs(void);
 extern int arch_early_irq_init(void);
-extern void irq_set_pending(unsigned int irq);
+extern int arch_init_chip_data(struct irq_desc *desc, int node);
+
 #endif

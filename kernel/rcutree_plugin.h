@@ -1721,10 +1721,10 @@ static void __cpuinit rcu_prepare_kthreads(int cpu)
 
 #else /* #ifdef CONFIG_RCU_BOOST */
 
-static void rcu_initiate_boost(struct rcu_node *rnp, unsigned long flags)
+/*static void rcu_initiate_boost(struct rcu_node *rnp, unsigned long flags)
 {
 	raw_spin_unlock_irqrestore(&rnp->lock, flags);
-}
+}*/
 
 static void invoke_rcu_callbacks_kthread(void)
 {

@@ -654,11 +654,10 @@
 
 #ifdef CONFIG_BLK_DEV_INITRD
 #define INIT_RAM_FS							\
-	. = ALIGN(4);							\
+	. = ALIGN(PAGE_SIZE);						\
 	VMLINUX_SYMBOL(__initramfs_start) = .;				\
 	*(.init.ramfs)							\
-	. = ALIGN(8);							\
-	*(.init.ramfs.info)
+	VMLINUX_SYMBOL(__initramfs_end) = .;
 #else
 #define INIT_RAM_FS
 #endif

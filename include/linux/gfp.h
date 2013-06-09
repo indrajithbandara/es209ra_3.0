@@ -369,6 +369,11 @@ void drain_local_pages(void *dummy);
 
 extern gfp_t gfp_allowed_mask;
 
+static inline void set_gfp_allowed_mask(gfp_t mask)
+{
+	gfp_allowed_mask = mask;
+}
+
 extern void pm_restrict_gfp_mask(void);
 extern void pm_restore_gfp_mask(void);
 

@@ -25,7 +25,7 @@
 #include <linux/module.h>
 #include <linux/signal.h>
 #include <linux/ioport.h>
-#include <linux/interrupt.h>
+//#include <linux/interrupt.h>
 #include <linux/irq.h>
 #include <linux/random.h>
 #include <linux/smp.h>

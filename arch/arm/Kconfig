@@ -104,6 +104,10 @@ config MCA
 	  <file:Documentation/mca.txt> (and especially the web page given
 	  there) before attempting to build an MCA bus kernel.
 
+config GENERIC_HARDIRQS
+	bool
+	default y
+
 config STACKTRACE_SUPPORT
 	bool
 	default y
@@ -191,6 +195,9 @@ config FIQ
 
 config ARCH_MTD_XIP
 	bool
+
+config GENERIC_HARDIRQS_NO__DO_IRQ
+	def_bool y
 
 config VECTORS_BASE
 	hex

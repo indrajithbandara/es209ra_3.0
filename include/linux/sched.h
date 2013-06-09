@@ -1224,6 +1224,8 @@ struct task_struct {
 	unsigned int flags;	/* per process flags, defined below */
 	unsigned int ptrace;
 
+	int lock_depth;		/* BKL lock depth */
+
 #ifdef CONFIG_SMP
 	struct task_struct *wake_entry;
 	int on_cpu;

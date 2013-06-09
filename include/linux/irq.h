@@ -407,6 +407,36 @@ extern void handle_percpu_devid_irq(unsigned int irq, struct irq_desc *desc);
 extern void handle_bad_irq(unsigned int irq, struct irq_desc *desc);
 extern void handle_nested_irq(unsigned int irq);
 
+/*
+ * Monolithic do_IRQ implementation.
+ */
+#ifndef CONFIG_GENERIC_HARDIRQS_NO__DO_IRQ
+extern unsigned int __do_IRQ(unsigned int irq);
+#endif
+
+/*
+ * Architectures call this to let the generic IRQ layer
+ * handle an interrupt. If the descriptor is attached to an
+ * irqchip-style controller then we call the ->handle_irq() handler,
+ * and it calls __do_IRQ() if it's attached to an irqtype-style controller.
+ */
+static inline void generic_handle_irq_desc(unsigned int irq, struct irq_desc *desc)
+{
+#ifdef CONFIG_GENERIC_HARDIRQS_NO__DO_IRQ
+	desc->handle_irq(irq, desc);
+#else
+	if (likely(desc->handle_irq))
+		desc->handle_irq(irq, desc);
+	else
+		__do_IRQ(irq);
+#endif
+}
+
+static inline void generic_handle_irq(unsigned int irq)
+{
+	generic_handle_irq_desc(irq, irq_to_desc(irq));
+}
+
 /* Handling of unhandled and spurious interrupts: */
 extern void note_interrupt(unsigned int irq, struct irq_desc *desc,
 			   irqreturn_t action_ret);
