@@ -1,7 +1,7 @@
 /* arch/arm/mach-msm/clock.c
  *
  * Copyright (C) 2007 Google, Inc.
- * Copyright (c) 2007-2011, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2007-2011, Code Aurora Forum. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -21,7 +21,9 @@
 #include <linux/module.h>
 #include <linux/clk.h>
 #include <linux/clkdev.h>
-#include <linux/dma-mapping.h>
+#ifdef CONFIG_MACH_ES209RA
+#include <linux/mfd/tps65023.h>
+#endif
 
 #include "clock.h"
 
@@ -128,39 +130,6 @@ static void unvote_rate_vdd(struct clk *clk, unsigned long rate)
 	unvote_vdd_level(clk->vdd_class, level);
 }
 
-#ifdef CONFIG_CLOCK_MAP
-static unsigned clock_count;
-unsigned long *clock_enable_map;
-
-static void clk_log_map_init(size_t count)
-{
-	dma_addr_t addr;
-	clock_enable_map = dma_alloc_coherent(NULL, BITS_TO_LONGS(count), &addr,
-					      GFP_KERNEL);
-}
-
-static void clk_log_map_register(struct clk *clk)
-{
-	if (!clk->id)
-		clk->id = clock_count++;
-}
-
-static void clk_log_map_enable(struct clk *clk)
-{
-	__set_bit(clk->id, clock_enable_map);
-}
-
-static void clk_log_map_disable(struct clk *clk)
-{
-	__clear_bit(clk->id, clock_enable_map);
-}
-#else
-static void clk_log_map_init(size_t count) { }
-static void clk_log_map_register(struct clk *clk) { }
-static void clk_log_map_enable(struct clk *clk) { }
-static void clk_log_map_disable(struct clk *clk) { }
-#endif
-
 /*
  * Standard clock functions defined in include/linux/clk.h
  */
@@ -187,10 +156,8 @@ int clk_enable(struct clk *clk)
 		ret = vote_rate_vdd(clk, clk->rate);
 		if (ret)
 			goto err_vote_vdd;
-		if (clk->ops->enable) {
+		if (clk->ops->enable)
 			ret = clk->ops->enable(clk);
-			clk_log_map_enable(clk);
-		}
 		if (ret)
 			goto err_enable_clock;
 	} else if (clk->flags & CLKFLAG_HANDOFF_RATE) {
@@ -234,10 +201,8 @@ void clk_disable(struct clk *clk)
 	if (clk->count == 1) {
 		struct clk *parent = clk_get_parent(clk);
 
-		if (clk->ops->disable) {
+		if (clk->ops->disable)
 			clk->ops->disable(clk);
-			clk_log_map_disable(clk);
-		}
 		unvote_rate_vdd(clk, clk->rate);
 		clk_disable(clk->depends);
 		clk_disable(parent);
@@ -351,6 +316,43 @@ int clk_set_flags(struct clk *clk, unsigned long flags)
 }
 EXPORT_SYMBOL(clk_set_flags);
 
+#ifdef CONFIG_MACH_ES209RA
+#ifdef CONFIG_QSD_SVS
+#define TPS65023_MAX_DCDC1	1600
+#else
+#define TPS65023_MAX_DCDC1	CONFIG_QSD_PMIC_DEFAULT_DCDC1
+#endif
+
+static int qsd8x50_tps65023_set_dcdc1(int mVolts)
+{
+	int rc = 0;
+#ifdef CONFIG_QSD_SVS
+	rc = tps65023_set_dcdc1_level(mVolts);
+	/* By default the TPS65023 will be initialized to 1.225V.
+	 * So we can safely switch to any frequency within this
+	 * voltage even if the device is not probed/ready.
+	 */
+	if (rc == -ENODEV && mVolts <= CONFIG_QSD_PMIC_DEFAULT_DCDC1)
+		rc = 0;
+#else
+	/* Disallow frequencies not supported in the default PMIC
+	 * output voltage.
+	 */
+	if (mVolts > CONFIG_QSD_PMIC_DEFAULT_DCDC1)
+		rc = -EFAULT;
+#endif
+	return rc;
+}
+
+struct clock_init_data qsd8x50_clock_init_data __initdata = {
+	.acpu_switch_time_us = 20,
+	.max_speed_delta_khz = 256000,
+	.vdd_switch_time_us = 62,
+	.max_vdd = TPS65023_MAX_DCDC1,
+	.acpu_set_vdd = qsd8x50_tps65023_set_dcdc1,
+};
+#endif
+
 static struct clock_init_data __initdata *clk_init_data;
 
 void __init msm_clock_init(struct clock_init_data *data)
@@ -359,7 +361,6 @@ void __init msm_clock_init(struct clock_init_data *data)
 	struct clk_lookup *clock_tbl;
 	size_t num_clocks;
 
-	clk_log_map_init(500);
 	clk_init_data = data;
 	if (clk_init_data->init)
 		clk_init_data->init();
@@ -370,7 +371,6 @@ void __init msm_clock_init(struct clock_init_data *data)
 	for (n = 0; n < num_clocks; n++) {
 		struct clk *clk = clock_tbl[n].clk;
 		struct clk *parent = clk_get_parent(clk);
-		clk_log_map_register(clk);
 		clk_set_parent(clk, parent);
 		if (clk->ops->handoff && !(clk->flags & CLKFLAG_HANDOFF_RATE)) {
 			if (clk->ops->handoff(clk)) {

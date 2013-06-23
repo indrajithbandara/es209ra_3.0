@@ -137,6 +137,10 @@ struct android_pmem_platform_data
 	const char* name;
 	/* size of memory region */
 	unsigned long size;
+#ifdef CONFIG_MACH_ES209RA 
+	/* starting physical address of memory region */
+	unsigned long start;
+#endif
 
 	enum pmem_allocator_type allocator_type;
 	/* treated as a 'hidden' variable in the board files. Can be

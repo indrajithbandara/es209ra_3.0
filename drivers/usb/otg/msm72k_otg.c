@@ -1819,7 +1819,7 @@ static void msm_otg_sm_work(struct work_struct *w)
 	int work = 0;
 	enum usb_otg_state state;
 	unsigned long flags;
-	struct msm_otg_platform_data *pdata = dev->pdata;
+	/*struct msm_otg_platform_data *pdata = dev->pdata;*/
 
 	if (atomic_read(&dev->in_lpm))
 		msm_otg_set_suspend(&dev->otg, 0);

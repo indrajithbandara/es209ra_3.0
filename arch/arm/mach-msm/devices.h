@@ -92,13 +92,12 @@ extern struct platform_device msm_device_sdc2;
 extern struct platform_device msm_device_sdc3;
 extern struct platform_device msm_device_sdc4;
 
-#ifdef CONFIG_MACH_ES209RA
-extern struct platform_device msm_device_hsusb_peripheral;
-#endif
 extern struct platform_device msm_device_gadget_peripheral;
 extern struct platform_device msm_device_hsusb_host;
 extern struct platform_device msm_device_hsusb_host2;
 extern struct platform_device msm_device_hsic_host;
+extern struct platform_device msm_device_hsusb_otg;
+extern struct platform_device msm_device_hsusb_peripheral;
 
 extern struct platform_device msm_device_otg;
 
@@ -282,3 +281,8 @@ extern struct platform_device msm_device_csic0;
 extern struct platform_device msm_device_csic1;
 extern struct platform_device msm_device_vfe;
 extern struct platform_device msm_device_vpe;
+
+#ifdef CONFIG_MACH_ES209RA
+extern struct clk_lookup msm_clocks_8x50[];
+extern unsigned msm_num_clocks_8x50;
+#endif

@@ -21,6 +21,13 @@ extern unsigned long __sw_hweight64(__u64 w);
  */
 #include <asm/bitops.h>
 
+#ifdef CONFIG_MACH_ES209RA
+#define for_each_bit(bit, addr, size) \
+	for ((bit) = find_first_bit((addr), (size)); \
+	     (bit) < (size); \
+	     (bit) = find_next_bit((addr), (size), (bit) + 1))
+#endif
+
 #define for_each_set_bit(bit, addr, size) \
 	for ((bit) = find_first_bit((addr), (size)); \
 	     (bit) < (size); \

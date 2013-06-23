@@ -2361,6 +2361,13 @@ config FB_MSM_MDDI_NOVATEK_FWVGA
 	---help---
 	  Support for MDDI Novatek (854x480) FWVGA panel
 
+config FB_MSM_MDDI_SEMC_LCD_POWER_OFF_SLEEP_MODE
+	depends on FB_MSM
+	bool "PowerOff sleep mode"
+	select FB_MSM_MDDI
+	---help---
+	  Support for Power Off as Sleep mode
+
 #
 # Extracted panels which will be connected to the MDDI Novatek MCU
 #
@@ -2496,6 +2503,15 @@ config FB_PUV3_UNIGFX
 	  framebuffer device. Without the support of PCI & AGP.
 
 source "drivers/video/msm/Kconfig"
+
+config FB_MSM_MDDI_TMD_NT35580
+  depends on FB_MSM
+  tristate "MDDI NT35580 LCD FWVGA Panel"
+  select FB_MSM_MDDI
+  ---help---
+    Support for MDDI NT35580 LCD FWVGA (480x854) panel
+
+
 
 source "drivers/video/omap/Kconfig"
 source "drivers/video/omap2/Kconfig"

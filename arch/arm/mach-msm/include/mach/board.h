@@ -27,6 +27,20 @@
 #include <linux/msm_ssbi.h>
 #include <mach/msm_bus.h>
 
+/*ES209RA_CHANGE_S : 
+ * struct msm_acpu_clock_platform_data was minssed in kernel3.0 source
+ * If this structure will not need in kernel3.0, please remove 
+ */
+/* platform device data structures */
+struct msm_acpu_clock_platform_data {
+	uint32_t acpu_switch_time_us;
+	uint32_t max_speed_delta_khz;
+	uint32_t vdd_switch_time_us;
+	unsigned int max_axi_khz;
+	unsigned int max_vdd;
+	int (*acpu_set_vdd) (int mvolts);
+};
+
 struct msm_camera_io_ext {
 	uint32_t mdcphy;
 	uint32_t mdcsz;
@@ -488,6 +502,8 @@ struct isp1763_platform_data {
 };
 #endif
 /* common init routines for use by arch/arm/mach-msm/board-*.c */
+
+void __init msm_acpu_clock_init(struct msm_acpu_clock_platform_data *);
 
 #ifdef CONFIG_OF_DEVICE
 void msm_copper_init(struct of_dev_auxdata **);

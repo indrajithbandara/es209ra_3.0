@@ -24,6 +24,11 @@
 
 #include <mach/clk.h>
 
+/* Maximum number of clocks supported. */
+#ifdef CONFIG_MACH_ES209RA
+#define MAX_NR_CLKS	300
+#endif
+
 #define CLKFLAG_INVERT			0x00000001
 #define CLKFLAG_NOINVERT		0x00000002
 #define CLKFLAG_NONEST			0x00000004
@@ -102,6 +107,10 @@ struct clk {
 
 	struct list_head children;
 	struct list_head siblings;
+#ifdef CONFIG_MACH_ES209RA
+	struct list_head list;
+	const char *name;
+#endif
 #ifdef CONFIG_CLOCK_MAP
 	unsigned id;
 #endif
@@ -123,6 +132,14 @@ struct clk {
  * @late_init: called during late init
  */
 struct clock_init_data {
+#ifdef CONFIG_MACH_ES209RA
+	uint32_t acpu_switch_time_us;
+	uint32_t max_speed_delta_khz;
+	uint32_t vdd_switch_time_us;
+	unsigned int max_axi_khz;
+	unsigned int max_vdd;
+	int (*acpu_set_vdd) (int mvolts);
+#endif
 	struct clk_lookup *table;
 	size_t size;
 	void (*init)(void);
@@ -143,6 +160,7 @@ extern struct clock_init_data msm8x60_clock_init_data;
 extern struct clock_init_data qds8x50_clock_init_data;
 
 void msm_clock_init(struct clock_init_data *data);
+
 int vote_vdd_level(struct clk_vdd_class *vdd_class, int level);
 int unvote_vdd_level(struct clk_vdd_class *vdd_class, int level);
 
@@ -168,3 +186,7 @@ extern struct clk dummy_clk;
 
 #endif
 
+#ifdef CONFIG_MACH_ES209RA
+int msm_clock_require_tcxo(unsigned long *reason, int nbits);
+int msm_clock_get_name(uint32_t id, char *name, uint32_t size);
+#endif

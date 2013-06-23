@@ -77,14 +77,14 @@ static struct q6_hw_info q6_audio_hw[Q6_HW_COUNT] = {
 };
 
 struct q6_audio_gpios {
-	int aux_pcm_dout;
+  int aux_pcm_dout;
 };
 
 static struct q6_audio_gpios audio_gpios;
 
 void set_audio_gpios(int gpio)
 {
-	audio_gpios.aux_pcm_dout = gpio;
+  audio_gpios.aux_pcm_dout = gpio;
 }
 
 static struct wake_lock wakelock;

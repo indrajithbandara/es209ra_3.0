@@ -127,7 +127,6 @@ struct msm_hsusb_gadget_platform_data {
 	int is_phy_status_timer_on;
 };
 
-#ifdef CONFIG_MACH_ES209RA
 struct msm_hsusb_platform_data {
 	__u16   version;
 	unsigned phy_info;
@@ -152,7 +151,6 @@ struct msm_hsusb_platform_data {
 
 	u32 swfi_latency;
 };
-#endif
 
 struct msm_otg_platform_data {
 	int (*rpc_connect)(int);
