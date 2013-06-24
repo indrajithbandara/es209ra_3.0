@@ -1930,7 +1930,7 @@ static void __init es209ra_allocate_memory_regions(void)
 
 	size = pmem_kernel_ebi1_size;
 	if (size) {
-		addr = alloc_bootmem_aligned(size, 0x100000);
+		addr = alloc_bootmem_align(size, 0x100000);
 		android_pmem_kernel_ebi1_pdata.start = __pa(addr);
 		android_pmem_kernel_ebi1_pdata.size = size;
 		pr_info("allocating %lu bytes at %p (%lx physical) for kernel"
@@ -1963,6 +1963,11 @@ static void __init es209ra_allocate_memory_regions(void)
 	       size, (unsigned long)addr);
 }
 
+static void __init es209ra_init_early(void)
+{
+	es209ra_allocate_memory_regions();
+}
+
 static void __init es209ra_fixup(struct machine_desc *desc, struct tag *tags,
                                char **cmdline, struct meminfo *mi)
 {
@@ -1978,8 +1983,9 @@ static void __init es209ra_map_io(void)
 {
 	msm_shared_ram_phys = MSM_SHARED_RAM_PHYS;
 	msm_map_qsd8x50_io();
-	es209ra_allocate_memory_regions();
-	//msm_clock_init(msm_clocks_8x50, msm_num_clocks_8x50);
+	if (socinfo_init() < 0)
+		printk(KERN_ERR "%s: socinfo_init() failed!\n",
+		       __func__);
 }
 
 static int __init board_serialno_setup(char *serialno)
@@ -1996,5 +2002,6 @@ MACHINE_START(ES209RA, "ES209RA")
 	.init_irq	= es209ra_init_irq,
 	.init_machine	= es209ra_init,
 	.timer = &msm_timer,
+	.init_early 	= es209ra_init_early,
 MACHINE_END
 
