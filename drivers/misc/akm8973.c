@@ -425,8 +425,8 @@ static int akm_aot_release(struct inode *inode, struct file *file)
 	return 0;
 }
 
-static int
-akm_aot_ioctl(struct inode *inode, struct file *file,
+static long 
+akm_aot_ioctl(struct file *file,
 	      unsigned int cmd, unsigned long arg)
 {
 	void __user *argp = (void __user *)arg;
@@ -521,8 +521,8 @@ static int akmd_release(struct inode *inode, struct file *file)
 	return 0;
 }
 
-static int
-akmd_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
+static long 
+akmd_ioctl(struct file *file, unsigned int cmd,
 	   unsigned long arg)
 {
 #if DEBUG
@@ -812,7 +812,7 @@ static struct file_operations akm_aot_fops = {
 	.owner = THIS_MODULE,
 	.open = akm_aot_open,
 	.release = akm_aot_release,
-	.ioctl = akm_aot_ioctl,
+	.unlocked_ioctl = akm_aot_ioctl,
 };
 
 static struct miscdevice akm_aot_device = {
@@ -943,8 +943,7 @@ exit_check_functionality_failed:
 	return err;
 }
 
-static int akm8973_detect(struct i2c_client *client, int kind,
-			  struct i2c_board_info *info)
+static int akm8973_detect(struct i2c_client *client, struct i2c_board_info *info)
 {
 #if DEBUG
 	printk(KERN_INFO "%s\n", __FUNCTION__);
@@ -1002,6 +1001,9 @@ static const struct i2c_device_id akm8973_id[] = {
 	{ }
 };
 
+static const unsigned short normal_i2c[] = { 0x1C,
+							I2C_CLIENT_END };
+
 static struct i2c_driver akm8973_driver = {
 	.class = I2C_CLASS_HWMON,
 	.probe = akm8973_probe,
@@ -1014,7 +1016,7 @@ static struct i2c_driver akm8973_driver = {
 		   .name = "akm8973",
 		   },
 	.detect = akm8973_detect,
-	.address_data = &addr_data,
+	.address_list = normal_i2c,
 };
 
 static int __init akm8973_init(void)
