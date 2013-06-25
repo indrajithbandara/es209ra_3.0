@@ -63,10 +63,11 @@
 #include "socinfo.h"
 #include "msm-keypad-devices.h"
 #include "pm.h"
+#include "pm-boot.h"
 #include "smd_private.h"
 #include "proc_comm.h"
 #include <linux/msm_kgsl.h>
-#include "clock.h"
+//#include "clock.h"
 #include "acpuclock.h"
 
 #ifdef CONFIG_USB_G_ANDROID
@@ -190,7 +191,7 @@ static struct platform_device ram_console_device = {
         .id             = -1,
         .num_resources  = ARRAY_SIZE(ram_console_resources),
         .resource       = ram_console_resources,
-        .dev = { .platform_data=0,}
+	.dev = { .platform_data=0,}
 };
 
 #ifdef CONFIG_USB_G_ANDROID
@@ -1038,15 +1039,16 @@ static struct msm_tsif_platform_data tsif_platform_data = {
 		rc = -EFAULT;
 #endif
 	return rc;
-}*/
+}
 
-/*static struct msm_clock_init qds8x50_clock_init_data = {
+static struct msm_acpu_clock_platform_data qds8x50_clock_init_data = {
 	.acpu_switch_time_us = 20,
 	.max_speed_delta_khz = 256000,
 	.vdd_switch_time_us = 62,
 	.max_vdd = TPS65023_MAX_DCDC1,
 	.acpu_set_vdd = qsd8x50_tps65023_set_dcdc1,
 };*/
+
 
 #ifdef CONFIG_MAX17040_FUELGAUGE
 static struct max17040_i2c_platform_data max17040_platform_data = {
@@ -1761,6 +1763,11 @@ static struct msm_pm_platform_data msm_pm_data[MSM_PM_SLEEP_MODE_NR] = {
 
 };
 
+static struct msm_pm_boot_platform_data msm_pm_boot_pdata __initdata = {
+	.mode = MSM_PM_BOOT_CONFIG_RESET_VECTOR_VIRT,
+	.v_addr = (unsigned int *)PAGE_OFFSET,
+};
+
 static void msm_i2c_gpio_config(int iface, int config_type)
 {
 	int gpio_scl;
@@ -1885,15 +1892,9 @@ int set_predecode_repair_cache(void);
 void smsm_wait_for_modem(void) __init;
 static void __init es209ra_init(void)
 {
-	smsm_wait_for_modem();
-	if (socinfo_init() < 0)
-		printk(KERN_ERR "%s: socinfo_init() failed!\n", __func__);
-	printk(KERN_INFO "%s: startup_reason: 0x%08x\n",
-					__func__, es209ra_startup_reason);
-	printk(KERN_ERR "PVR0F2: %x\n", get_predecode_repair_cache());
-	set_predecode_repair_cache();
-	printk(KERN_ERR "PVR0F2: %x\n", get_predecode_repair_cache());
 	msm_clock_init(&qds8x50_clock_init_data);
+	//qsd8x50_cfg_smc91x();
+	acpuclk_init(&acpuclk_8x50_soc_data);
 
 	msm_hsusb_pdata.swfi_latency =
 		msm_pm_data
@@ -1905,6 +1906,7 @@ static void __init es209ra_init(void)
 		[MSM_PM_SLEEP_MODE_RAMP_DOWN_AND_WAIT_FOR_INTERRUPT].latency;
 	msm_device_otg.dev.platform_data = &msm_otg_pdata;
 	msm_device_gadget_peripheral.dev.platform_data = &msm_gadget_pdata;
+	msm_gadget_pdata.is_phy_status_timer_on = 1;
 
 #if defined(CONFIG_TSIF) || defined(CONFIG_TSIF_MODULE)
 	msm_device_tsif.dev.platform_data = &tsif_platform_data;
@@ -1927,8 +1929,14 @@ static void __init es209ra_init(void)
 	spi_register_board_info(msm_spi_board_info,
 				ARRAY_SIZE(msm_spi_board_info));
 	msm_pm_set_platform_data(msm_pm_data, ARRAY_SIZE(msm_pm_data));
-//	kgsl_phys_memory_init();
-	platform_device_register(&es209ra_keypad_device);
+	BUG_ON(msm_pm_boot_init(&msm_pm_boot_pdata));
+
+#ifdef CONFIG_SURF_FFA_GPIO_KEYPAD
+	if (machine_is_qsd8x50_ffa() || machine_is_qsd8x50a_ffa())
+		platform_device_register(&keypad_device_8k_ffa);
+	else
+		platform_device_register(&keypad_device_surf);
+#endif
 	msm_mddi_tmd_fwvga_display_device_init();
 }
 
@@ -1998,4 +2006,3 @@ MACHINE_START(ES209RA, "ES209RA")
 	.timer = &msm_timer,
 	.init_early 	= es209ra_init_early,
 MACHINE_END
-
