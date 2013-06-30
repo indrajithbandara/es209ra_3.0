@@ -739,7 +739,7 @@ static struct platform_device msm_bluesleep_device = {
 	.resource	= bluesleep_resources,
 };
 
-#ifdef CONFIG_BT
+//#ifdef CONFIG_BT
 static struct platform_device msm_bt_power_device = {
 	.name = "bt_power",
 };
@@ -756,7 +756,7 @@ enum {
 	BT_VDD_FREG
 };
 
-static struct msm_gpio bt_config_power_on[] = {
+/*static struct msm_gpio bt_config_power_on[] = {
 	{ GPIO_CFG(29, 0, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA),	"BT_WAKE" },
 	{ GPIO_CFG(21, 0, GPIO_CFG_INPUT,  GPIO_CFG_NO_PULL, GPIO_CFG_2MA),	"HOST_WAKE" },
 	{ GPIO_CFG(77, 0, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA), "BT_VDD_IO" },
@@ -764,7 +764,7 @@ static struct msm_gpio bt_config_power_on[] = {
 	{ GPIO_CFG(141, 1, GPIO_CFG_INPUT,  GPIO_CFG_NO_PULL, GPIO_CFG_2MA), "UART1DM_CTS" },
 	{ GPIO_CFG(139, 1, GPIO_CFG_INPUT,  GPIO_CFG_NO_PULL, GPIO_CFG_2MA), "UART1DM_RX" },
 	{ GPIO_CFG(140, 1, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA), "UART1DM_TX" }
-};
+};*/
 #if 0
 static unsigned bt_config_power_off[] = {
 	GPIO_CFG(29, 0, GPIO_INPUT, GPIO_PULL_DOWN, GPIO_2MA),	/* WAKE */
@@ -778,14 +778,14 @@ static unsigned bt_config_power_off[] = {
 #endif
 /* SEMC:LC: Update for Phase3.2 end */ 
 
-#if 1
+/*#if 1
 static int bluetooth_power(int on)
 {
-	printk(KERN_DEBUG "Bluetooth power switch: %d\n", on);
+	printk(KERN_DEBUG "Bluetooth power switch: %d\n", on);*/
 
-	gpio_set_value(77, on); /* PWR_EN */
+//	gpio_set_value(77, on); /* PWR_EN */
 
-	return 0;
+/*	return 0;
 }
 
 static void __init bt_power_init(void)
@@ -802,9 +802,9 @@ static void __init bt_power_init(void)
 			return;
 		}
 	}
-	gpio_set_value(77, 0); /* PWR_EN */
+	gpio_set_value(77, 0);*/ /* PWR_EN */
 
-	msm_bt_power_device.dev.platform_data = &bluetooth_power;
+	/*msm_bt_power_device.dev.platform_data = &bluetooth_power;
 	printk(KERN_DEBUG "Bluetooth power switch initialized\n");
 }
 #else
@@ -812,11 +812,11 @@ static int bluetooth_power(int on)
 {
 	struct vreg *vreg_bt;
 	struct vreg *vreg_wlan;
-	int pin, rc;
+	int pin, rc;*/
 
 	/* do not have vreg bt defined, gp6 is the same */
 	/* vreg_get parameter 1 (struct device *) is ignored */
-	vreg_bt = vreg_get(NULL, "gp6");
+	/*vreg_bt = vreg_get(NULL, "gp6");
 
 	if (IS_ERR(vreg_bt)) {
 		printk(KERN_ERR "%s: vreg get failed (%ld)\n",
@@ -842,10 +842,10 @@ static int bluetooth_power(int on)
 				       __func__, bt_config_power_on[pin], rc);
 				return -EIO;
 			}
-		}
+		}*/
 
 		/* units of mV, steps of 50 mV */
-		rc = vreg_set_level(vreg_bt, PMIC_VREG_GP6_LEVEL);
+		/*rc = vreg_set_level(vreg_bt, PMIC_VREG_GP6_LEVEL);
 		if (rc) {
 			printk(KERN_ERR "%s: vreg bt set level failed (%d)\n",
 			       __func__, rc);
@@ -856,10 +856,10 @@ static int bluetooth_power(int on)
 			printk(KERN_ERR "%s: vreg bt enable failed (%d)\n",
 			       __func__, rc);
 			return -EIO;
-		}
+		}*/
 
 		/* units of mV, steps of 50 mV */
-		rc = vreg_set_level(vreg_wlan, PMIC_VREG_WLAN_LEVEL);
+		/*rc = vreg_set_level(vreg_wlan, PMIC_VREG_WLAN_LEVEL);
 		if (rc) {
 			printk(KERN_ERR "%s: vreg wlan set level failed (%d)\n",
 			       __func__, rc);
@@ -871,14 +871,14 @@ static int bluetooth_power(int on)
 			       __func__, rc);
 			return -EIO;
 		}
+*/
+//		gpio_set_value(22, on); /* VDD_IO */
+//		gpio_set_value(18, on); /* SYSRST */
 
-		gpio_set_value(22, on); /* VDD_IO */
-		gpio_set_value(18, on); /* SYSRST */
-
-	} else {
-		gpio_set_value(18, on); /* SYSRST */
-		gpio_set_value(22, on); /* VDD_IO */
-
+//	} else {
+//		gpio_set_value(18, on); /* SYSRST */
+//		gpio_set_value(22, on); /* VDD_IO */
+/*
 		rc = vreg_disable(vreg_wlan);
 		if (rc) {
 			printk(KERN_ERR "%s: vreg wlan disable failed (%d)\n",
@@ -916,7 +916,7 @@ static void __init bt_power_init(void)
 #endif
 #else
 #define bt_power_init(x) do {} while (0)
-#endif
+#endif*/
 
 /*static struct resource kgsl_3d0_resources[] = {
        {
@@ -2009,7 +2009,7 @@ static void __init es209ra_init(void)
 	hsusb_chg_set_supplicants(hsusb_chg_supplied_to,
 				  ARRAY_SIZE(hsusb_chg_supplied_to));
 	es209ra_init_mmc();
-	bt_power_init();
+	//bt_power_init();
 	audio_gpio_init();
 	msm_device_i2c_init();
 	msm_qsd_spi_init();
