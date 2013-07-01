@@ -4,6 +4,7 @@
 
 config ARCH_WANT_OPTIONAL_GPIOLIB
 	bool
+	default y
 	help
 	  Select this config option from the architecture Kconfig, if
 	  it is possible to use gpiolib on the architecture, but let the
