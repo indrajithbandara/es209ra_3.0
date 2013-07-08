@@ -19,8 +19,14 @@
 #include <asm/mach-types.h>
 #include <mach/debug_mm.h>
 
+#ifdef CONFIG_MACH_ES209RA
+#define GPIO_HEADSET_AMP 149
+#define GPIO_SPEAKER_AMP 154
+#else
 #define GPIO_HEADSET_AMP 157
 #define GPIO_SPEAKER_AMP 39
+#endif
+
 #define GPIO_HEADSET_SHDN_N 48
 
 void analog_init(void)

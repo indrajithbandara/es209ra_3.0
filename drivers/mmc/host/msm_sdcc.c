@@ -3180,7 +3180,7 @@ static void msmsdcc_print_rpm_info(struct msmsdcc_host *host) {}
 static int msmsdcc_enable(struct mmc_host *mmc)
 {
 	struct msmsdcc_host *host = mmc_priv(mmc);
-	unsigned long flags;
+	/*unsigned long flags;*/
 	int rc = 0;
 
 	msmsdcc_pm_qos_update_latency(host, 1);
@@ -3203,7 +3203,7 @@ out:
 static int msmsdcc_disable(struct mmc_host *mmc, int lazy)
 {
 	struct msmsdcc_host *host = mmc_priv(mmc);
-	unsigned long flags;
+	/*unsigned long flags;*/
 	int rc = 0;
 
 	msmsdcc_pm_qos_update_latency(host, 0);

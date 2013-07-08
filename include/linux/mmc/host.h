@@ -304,6 +304,7 @@ struct mmc_host {
 		int				num_funcs;
 	} embedded_sdio_data;
 #endif
+    int    last_suspend_error;
 
 #ifdef CONFIG_MMC_PERF_PROFILING
 	struct {

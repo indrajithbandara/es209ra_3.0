@@ -31,6 +31,15 @@
 #define SCM_CMD_TERMINATE_PC 0x2
 #endif
 
+ENTRY(get_predecode_repair_cache)
+	MRC    p15, 0, r0, c15, c15, 2    //; PVR0F2
+	bx      lr
+ENTRY(set_predecode_repair_cache)
+	MRC    p15, 0, r1, c15, c15, 2    //; PVR0F2
+	ORR    r1, r1, #0x10              //; enable bit 4
+	MCR    p15, 0, r1, c15, c15, 2    //; disable predecode repair cache
+	bx      lr
+
 ENTRY(msm_arch_idle)
 #ifdef CONFIG_ARCH_MSM_KRAIT
 	mrc 	p15, 0, r0, c0, c0, 0

@@ -3134,6 +3134,30 @@ static __init int modem_restart_late_init(void)
 }
 late_initcall(modem_restart_late_init);
 
+void __init smsm_wait_for_modem(void)
+{
+	uint32_t *smsm = NULL;
+	unsigned long flags;
+
+	printk(KERN_INFO "Waiting for Modem...\n");
+	for (;;) {
+		spin_lock_irqsave(&smem_lock, flags);
+		if (smsm == NULL) {
+			smsm = smem_alloc(ID_SHARED_STATE,
+				SMSM_NUM_ENTRIES * sizeof(uint32_t));
+		} else {
+			if ((smsm[SMSM_MODEM_STATE] & SMSM_OSENTERED) != 0) {
+				spin_unlock_irqrestore(&smem_lock, flags);
+				break;
+			}
+		}
+		spin_unlock_irqrestore(&smem_lock, flags);
+		schedule();
+	}
+
+	return;
+}
+
 static struct platform_driver msm_smd_driver = {
 	.probe = msm_smd_probe,
 	.driver = {

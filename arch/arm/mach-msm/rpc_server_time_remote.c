@@ -121,7 +121,11 @@ static int handle_rpc_call(struct msm_rpc_server *server,
 		rtc_hctosys();
 		getnstimeofday(&tv);
 		/* Update the alarm information with the new time info. */
+#ifdef CONFIG_MACH_ES209RA
+		//alarm_update_timedelta(ts, tv);
+#else
 		alarm_update_timedelta(ts, tv);
+#endif
 		return 0;
 	}
 

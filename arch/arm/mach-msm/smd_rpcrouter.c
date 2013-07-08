@@ -50,7 +50,6 @@
 #include "smd_rpcrouter.h"
 #include "modem_notifier.h"
 #include "smd_rpc_sym.h"
-#include "smd_private.h"
 
 enum {
 	SMEM_LOG = 1U << 0,

@@ -135,6 +135,10 @@ int32_t pmem_kfree(const int32_t physaddr);
 struct android_pmem_platform_data
 {
 	const char* name;
+#ifdef CONFIG_MACH_ES209RA
+	/* starting physical address of memory region */
+	unsigned long start;
+#endif
 	/* size of memory region */
 	unsigned long size;
 

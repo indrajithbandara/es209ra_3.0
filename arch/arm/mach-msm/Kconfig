@@ -589,6 +589,15 @@ config MACH_QSD8X50_FFA
 	help
 	  Support for the Qualcomm QSD8x50 FFA eval board.
 
+config MACH_ES209RA
+	depends on ARCH_QSD8X50
+	depends on MSM_SOC_REV_NONE
+	depends on MSM_STACKED_MEMORY
+	default y
+	bool "QSD8x50 ES209RA (Rachael)"
+	help
+	  Support for the ES209RA (Rachael) SEMC product using QSD8x50.
+
 config MACH_MSM7X25_SURF
 	depends on ARCH_MSM7X25
 	depends on !MSM_STACKED_MEMORY
@@ -1094,7 +1103,7 @@ config HTC_PWRSINK
 
 config QSD_SVS
 	bool "QSD Static Voltage Scaling"
-	depends on (MACH_QSD8X50_SURF || MACH_QSD8X50_FFA)
+	depends on (MACH_QSD8X50_SURF || MACH_QSD8X50_FFA || MACH_ES209RA)
 	default y
 	select TPS65023
 	help
@@ -1102,7 +1111,7 @@ config QSD_SVS
 
 config QSD_PMIC_DEFAULT_DCDC1
 	int "PMIC default output voltage"
-	depends on (MACH_QSD8X50_SURF || MACH_QSD8X50_FFA)
+	depends on (MACH_QSD8X50_SURF || MACH_QSD8X50_FFA || MACH_ES209RA)
 	default 1250
 	help
 	  This is the PMIC voltage at Linux kernel boot.
@@ -2312,5 +2321,66 @@ config MSM_CACHE_DUMP_ON_PANIC
 	  look at them in a RAM dump will give useless data. Select this if you
 	  want to dump the L1 and L2 caches on panic before any flush occurs.
 	  If unsure, say N
+
+config SEMC_SEPORT_PLATFORM
+	bool "SEMC Seport platform driver"
+	depends on (ARCH_SQD || ARCH_MSM) && SEMC_SEPORT
+	default n
+	help
+	  hardware dependant driver for SEMC Seport systemconnector.
+	  Requires SEMC systemconnector to be enabled!
+
+config SEMC_POWER
+	tristate "Semc power"
+	depends on POWER_SUPPLY
+	default n
+	help
+	  Enable semc battery power manager.
+
+config ES209RA_HEADSET
+	bool "ES209RA headset detection driver"
+	default y if MACH_ES209RA
+	help
+	  Provides support for detecting 3.5mm audio jack, such as wired
+	  headset, on the es209ra platform.
+
+config ES209RA_INPUT_GPIO_MATRIX
+	bool "ES209RA GPIO key matrix driver"
+	depends on MACH_ES209RA && INPUT_GPIO
+	default y
+	help
+	  Enable GPIO key matrix driver for es209ra.
+	  This driver is derived from common GPIO key matrix driver(gpio_matrix.c)
+	  Difference from the common driver is as follows:
+	   1. Support discard timer for long key press.
+	   2. Pull-up the KR line when the other KR line is being driven.
+
+config ES209RA_BYPASS_BOOTLOADER
+	bool "ES209RA Bypass BootLoader"
+	depends on MACH_ES209RA
+	default n
+	help
+	  Enable Bypass bootloader patch on the es209ra platform.
+
+config SEMC_LOW_BATT_SHUTDOWN
+	bool "Low-Battery Shutdown support"
+	depends on (ARCH_MSM && MSM_ONCRPCROUTER)
+	default n
+	help
+	  Say Y to enable support for the low-battery detection.
+	  This driver communicate with AMSS VBatt driver.
+	  When battery voltage is less than the registerd threashold
+	  during power collapse, AMSS wakes ACPU up and sends callback
+	  request to this function.
+
+config SEMC_RPC_SERVER_HANDSET
+       bool "Enable SEMC handset rpc dispatcher"
+       depends on (ARCH_SQD || ARCH_MSM) && MSM_ONCRPCROUTER
+       default n
+       help
+         This enables SEMC version of rpc_server_handset message
+	 dispatcher.
+	 This cannot cooperate with MSM_RPCSERVER_HANDSET. If this
+	 is set, an error will be generated.
 
 endif

@@ -37,6 +37,14 @@ struct msm_chg_rpc_ids {
 	unsigned	chg_usb_charger_disconnected_proc;
 	unsigned	chg_usb_i_is_available_proc;
 	unsigned	chg_usb_i_is_not_available_proc;
+	unsigned  chg_is_charging_proc;
+#if defined(CONFIG_MACH_ES209RA)
+	unsigned  chg_battery_thermo_proc;
+	unsigned  chg_charger_current_proc;
+	unsigned  chg_qsd_thermo_proc;
+	unsigned  chg_charger_thermo_proc;
+#endif /* CONFIG_MACH_ES209RA */
+
 };
 
 struct msm_hsusb_rpc_ids {
@@ -55,6 +63,16 @@ struct msm_hsusb_rpc_ids {
 
 static struct msm_hsusb_rpc_ids usb_rpc_ids;
 static struct msm_chg_rpc_ids chg_rpc_ids;
+
+#if defined(CONFIG_SEMC_POWER) || \
+    defined(CONFIG_SEMC_POWER_MODULE) || \
+    defined(CONFIG_MAX17040_FUELGAUGE)
+static usb_connect_status_callback_t semc_usb_connected_callback_fn = NULL;
+static enum semc_charger semc_charger_connected = NO_CHARGER;
+static u32 semc_usb_max_current = 0;
+#endif /* CONFIG_SEMC_POWER ||
+	  CONFIG_SEMC_POWER_MODULE ||
+	  CONFIG_MAX17040_FUELGAUGE */
 
 static int msm_hsusb_init_rpc_ids(unsigned long vers)
 {
@@ -102,10 +120,18 @@ static int msm_chg_init_rpc(unsigned long vers)
 		if (IS_ERR(chg_ep))
 			return -ENODATA;
 		chg_rpc_ids.vers_comp				= vers;
+		chg_rpc_ids.chg_is_charging_proc     = 2;
 		chg_rpc_ids.chg_usb_charger_connected_proc 	= 7;
 		chg_rpc_ids.chg_usb_charger_disconnected_proc 	= 8;
 		chg_rpc_ids.chg_usb_i_is_available_proc 	= 9;
 		chg_rpc_ids.chg_usb_i_is_not_available_proc 	= 10;
+#if defined(CONFIG_MACH_ES209RA)
+		chg_rpc_ids.chg_battery_thermo_proc    = 22;
+		chg_rpc_ids.chg_charger_current_proc = 23;
+		chg_rpc_ids.chg_qsd_thermo_proc = 24;
+		chg_rpc_ids.chg_charger_thermo_proc = 25;
+#endif /* CONFIG_MACH_ES209RA */
+
 		return 0;
 	} else
 		return -ENODATA;
@@ -163,7 +189,8 @@ int msm_chg_rpc_connect(void)
 {
 	uint32_t chg_vers;
 
-	if (machine_is_msm7x27_surf() || machine_is_qsd8x50_surf())
+	if (machine_is_msm7x27_surf() || machine_is_qsd8x50_surf() ||
+	machine_is_qsd8x50a_surf()) 
 		return -ENOTSUPP;
 
 	if (chg_ep && !IS_ERR(chg_ep)) {
@@ -385,11 +412,26 @@ int msm_chg_usb_charger_connected(uint32_t device)
 {
 	int rc = 0;
 
-#ifdef CONFIG_USE_PMIC_CHARGING_ON_AMSS
 	struct hsusb_start_req {
 		struct rpc_request_hdr hdr;
 		uint32_t otg_dev;
 	} req;
+
+#if defined(CONFIG_SEMC_POWER) || \
+    defined(CONFIG_SEMC_POWER_MODULE) || \
+    defined(CONFIG_MAX17040_FUELGAUGE)
+	if (device == 0)
+		semc_charger_connected = USB_CHARGER;
+	else if (device == 2)
+		semc_charger_connected = WALL_CHARGER;
+	else
+		semc_charger_connected = NO_CHARGER;
+
+	if (semc_usb_connected_callback_fn)
+		semc_usb_connected_callback_fn(semc_charger_connected, semc_usb_max_current);
+#endif /* CONFIG_SEMC_POWER ||
+	  CONFIG_SEMC_POWER_MODULE ||
+	  CONFIG_MAX17040_FUELGAUGE */
 
 	if (!chg_ep || IS_ERR(chg_ep))
 		return -EAGAIN;
@@ -402,7 +444,6 @@ int msm_chg_usb_charger_connected(uint32_t device)
 			__func__, rc);
 	} else
 		pr_debug("msm_chg_usb_charger_connected\n");
-#endif
 
 	return rc;
 }
@@ -412,11 +453,21 @@ int msm_chg_usb_i_is_available(uint32_t sample)
 {
 	int rc = 0;
 
-#ifdef CONFIG_USE_PMIC_CHARGING_ON_AMSS
 	struct hsusb_start_req {
 		struct rpc_request_hdr hdr;
 		uint32_t i_ma;
 	} req;
+
+#if defined(CONFIG_SEMC_POWER) || \
+    defined(CONFIG_SEMC_POWER_MODULE) || \
+    defined(CONFIG_MAX17040_FUELGAUGE)
+	semc_usb_max_current = sample;
+
+	if (semc_usb_connected_callback_fn)
+		semc_usb_connected_callback_fn(semc_charger_connected, semc_usb_max_current);
+#endif /* CONFIG_SEMC_POWER ||
+	  CONFIG_SEMC_POWER_MODULE ||
+	  CONFIG_MAX17040_FUELGAUGE */
 
 	if (!chg_ep || IS_ERR(chg_ep))
 		return -EAGAIN;
@@ -431,7 +482,6 @@ int msm_chg_usb_i_is_available(uint32_t sample)
 		pr_debug("msm_chg_usb_i_is_available(%u)\n", sample);
 
 	usleep(3000);
-#endif
 
 	return rc;
 }
@@ -441,10 +491,20 @@ int msm_chg_usb_i_is_not_available(void)
 {
 	int rc = 0;
 
-#ifdef CONFIG_USE_PMIC_CHARGING_ON_AMSS
 	struct hsusb_start_req {
 		struct rpc_request_hdr hdr;
 	} req;
+
+#if defined(CONFIG_SEMC_POWER) || \
+    defined(CONFIG_SEMC_POWER_MODULE) || \
+    defined(CONFIG_MAX17040_FUELGAUGE)
+	semc_usb_max_current = 0;
+
+	if (semc_usb_connected_callback_fn)
+		semc_usb_connected_callback_fn(semc_charger_connected, semc_usb_max_current);
+#endif /* CONFIG_SEMC_POWER ||
+	  CONFIG_SEMC_POWER_MODULE ||
+	  CONFIG_MAX17040_FUELGAUGE */
 
 	if (!chg_ep || IS_ERR(chg_ep))
 		return -EAGAIN;
@@ -456,7 +516,6 @@ int msm_chg_usb_i_is_not_available(void)
 			"%d \n", __func__, rc);
 	} else
 		pr_debug("msm_chg_usb_i_is_not_available\n");
-#endif
 
 	return rc;
 }
@@ -466,10 +525,21 @@ int msm_chg_usb_charger_disconnected(void)
 {
 	int rc = 0;
 
-#ifdef CONFIG_USE_PMIC_CHARGING_ON_AMSS
 	struct hsusb_start_req {
 		struct rpc_request_hdr hdr;
 	} req;
+
+#if defined(CONFIG_SEMC_POWER) || \
+    defined(CONFIG_SEMC_POWER_MODULE) || \
+    defined(CONFIG_MAX17040_FUELGAUGE)
+	semc_charger_connected = NO_CHARGER;
+	semc_usb_max_current = 0;
+
+	if (semc_usb_connected_callback_fn)
+		semc_usb_connected_callback_fn(semc_charger_connected, semc_usb_max_current);
+#endif /* CONFIG_SEMC_POWER ||
+	  CONFIG_SEMC_POWER_MODULE ||
+	  CONFIG_MAX17040_FUELGAUGE */
 
 	if (!chg_ep || IS_ERR(chg_ep))
 		return -EAGAIN;
@@ -481,7 +551,6 @@ int msm_chg_usb_charger_disconnected(void)
 			__func__, rc);
 	} else
 		pr_debug("msm_chg_usb_charger_disconnected\n");
-#endif
 
 	return rc;
 }
@@ -787,6 +856,166 @@ void hsusb_chg_connected(enum chg_type chgtype)
 }
 EXPORT_SYMBOL(hsusb_chg_connected);
 
+#if defined(CONFIG_MACH_ES209RA)
+int msm_hsusb_chg_is_charging(void)
+{
+  struct hsusb_start_req {
+    struct rpc_request_hdr hdr;
+  } req;
+  struct hsusb_rpc_rep {
+    struct rpc_reply_hdr hdr;
+    u32 charge_status;
+  } rep;
+  int rc;
+
+  if (!chg_ep || IS_ERR(chg_ep))
+    return -EAGAIN;
+
+  rc = msm_rpc_call_reply(chg_ep, chg_rpc_ids.chg_is_charging_proc,
+        &req, sizeof(req),
+        &rep, sizeof(rep), (5 * HZ));
+  if (rc < 0) {
+    pr_err("%s: rpc call failed! error: (%d)"
+        "proc id: (0x%08x)\n",
+        __func__, rc,
+        chg_rpc_ids.chg_is_charging_proc);
+    return rc;
+  }
+
+  return be32_to_cpu(rep.charge_status);
+}
+EXPORT_SYMBOL(msm_hsusb_chg_is_charging);
+
+int msm_chg_battery_thermo(void)
+{
+  int rc = 0;
+  struct hsusb_start_req {
+    struct rpc_request_hdr hdr;
+  } req;
+  struct hsusb_rpc_rep {
+    struct rpc_reply_hdr hdr;
+    u32 battery_thermo;
+  } rep;
+  
+  memset(&rep, 0, sizeof(rep));
+  
+  if (!chg_ep || IS_ERR(chg_ep))
+    return -EAGAIN;
+
+  rc = msm_rpc_call_reply(chg_ep, chg_rpc_ids.chg_battery_thermo_proc,
+        &req, sizeof(req),
+        &rep, sizeof(rep), (5 * HZ));
+  if (rc < 0) {
+    printk(KERN_INFO "[RPC Check] msm_chg_battery_thermo() rc < 0\n");
+    pr_err("%s: rpc call failed! error: (%d)"
+        "proc id: (0x%08x)\n",
+        __func__, rc,
+        chg_rpc_ids.chg_battery_thermo_proc);
+    return rc;
+  }
+
+  return be32_to_cpu(rep.battery_thermo);
+}
+EXPORT_SYMBOL(msm_chg_battery_thermo);
+
+int msm_chg_charger_current(void)
+{
+  int rc = 0;
+  struct hsusb_start_req {
+    struct rpc_request_hdr hdr;
+  } req;
+  struct hsusb_rpc_rep {
+    struct rpc_reply_hdr hdr;
+    u32 charger_current;
+  } rep;
+
+  memset(&rep, 0, sizeof(rep));
+
+  if (!chg_ep || IS_ERR(chg_ep))
+    return -EAGAIN;
+
+  rc = msm_rpc_call_reply(chg_ep, chg_rpc_ids.chg_charger_current_proc,
+        &req, sizeof(req),
+        &rep, sizeof(rep), (5 * HZ));
+  if (rc < 0) {
+    printk(KERN_INFO "[RPC Check] msm_chg_charger_current() rc < 0\n");
+    pr_err("%s: rpc call failed! error: (%d)"
+        "proc id: (0x%08x)\n",
+        __func__, rc,
+        chg_rpc_ids.chg_charger_current_proc);
+    return rc;
+  }
+
+  return be32_to_cpu(rep.charger_current);
+}
+EXPORT_SYMBOL(msm_chg_charger_current);
+
+int msm_chg_qsd_thermo(void)
+{
+  int rc = 0;
+  struct hsusb_start_req {
+    struct rpc_request_hdr hdr;
+  } req;
+  struct hsusb_rpc_rep {
+    struct rpc_reply_hdr hdr;
+    u32 qsd_thermo;
+  } rep;
+
+  memset(&rep, 0, sizeof(rep));
+
+  if (!chg_ep || IS_ERR(chg_ep))
+    return -EAGAIN;
+
+  rc = msm_rpc_call_reply(chg_ep, chg_rpc_ids.chg_qsd_thermo_proc,
+        &req, sizeof(req),
+        &rep, sizeof(rep), (5 * HZ));
+  if (rc < 0) {
+    printk(KERN_INFO "[RPC Check] msm_chg_qsd_thermo() rc < 0\n");
+    pr_err("%s: rpc call failed! error: (%d)"
+        "proc id: (0x%08x)\n",
+        __func__, rc,
+        chg_rpc_ids.chg_qsd_thermo_proc);
+    return rc;
+  }
+
+  return be32_to_cpu(rep.qsd_thermo);
+}
+EXPORT_SYMBOL(msm_chg_qsd_thermo);
+
+int msm_chg_charger_thermo(void)
+{
+  int rc = 0;
+  struct hsusb_start_req {
+    struct rpc_request_hdr hdr;
+  } req;
+  struct hsusb_rpc_rep {
+    struct rpc_reply_hdr hdr;
+    u32 charger_thermo;
+  } rep;
+
+  memset(&rep, 0, sizeof(rep));
+
+  if (!chg_ep || IS_ERR(chg_ep))
+    return -EAGAIN;
+
+  rc = msm_rpc_call_reply(chg_ep, chg_rpc_ids.chg_charger_thermo_proc,
+        &req, sizeof(req),
+        &rep, sizeof(rep), (5 * HZ));
+  if (rc < 0) {
+    printk(KERN_INFO "[RPC Check] msm_chg_charger_thermo() rc < 0\n");
+    pr_err("%s: rpc call failed! error: (%d)"
+        "proc id: (0x%08x)\n",
+        __func__, rc,
+        chg_rpc_ids.chg_charger_thermo_proc);
+    return rc;
+  }
+
+  return be32_to_cpu(rep.charger_thermo);
+}
+EXPORT_SYMBOL(msm_chg_charger_thermo);
+
+#endif /* CONFIG_MACH_ES209RA */
+
 unsigned int hsusb_get_chg_current_ma(void)
 {
 	unsigned int ma;
@@ -799,3 +1028,29 @@ unsigned int hsusb_get_chg_current_ma(void)
 }
 EXPORT_SYMBOL(hsusb_get_chg_current_ma);
 #endif
+#if defined(CONFIG_SEMC_POWER) || \
+    defined(CONFIG_SEMC_POWER_MODULE) || \
+    defined(CONFIG_MAX17040_FUELGAUGE)
+void msm_chg_rpc_register_semc_callback(usb_connect_status_callback_t connect_status_fn)
+{
+	semc_usb_connected_callback_fn = connect_status_fn;
+}
+EXPORT_SYMBOL(msm_chg_rpc_register_semc_callback);
+
+void msm_chg_rpc_unregister_semc_callback(void)
+{
+	semc_usb_connected_callback_fn = NULL;
+}
+EXPORT_SYMBOL(msm_chg_rpc_unregister_semc_callback);
+
+void msm_chg_rpc_semc_get_usb_connected(enum semc_charger *connected, u16 *max_current)
+{
+	if (connected && max_current) {
+		*connected = semc_charger_connected;
+		*max_current = (u16)semc_usb_max_current;
+	}
+}
+EXPORT_SYMBOL(msm_chg_rpc_semc_get_usb_connected);
+#endif /* CONFIG_SEMC_POWER ||
+	  CONFIG_SEMC_POWER_MODULE ||
+	  CONFIG_MAX17040_FUELGAUGE */

@@ -27,6 +27,18 @@
 #include <linux/msm_ssbi.h>
 #include <mach/msm_bus.h>
 
+#ifdef CONFIG_MACH_ES209RA
+/* platform device data structures */
+struct msm_acpu_clock_platform_data {
+	uint32_t acpu_switch_time_us;
+	uint32_t max_speed_delta_khz;
+	uint32_t vdd_switch_time_us;
+	unsigned int max_axi_khz;
+	unsigned int max_vdd;
+	int (*acpu_set_vdd) (int mvolts);
+};
+#endif
+
 struct msm_camera_io_ext {
 	uint32_t mdcphy;
 	uint32_t mdcsz;
@@ -250,6 +262,23 @@ struct msm_camera_sensor_info {
 	struct msm_camera_sensor_flash_data *flash_data;
 	int csi_if;
 	struct msm_camera_csi_params csi_params;
+#ifdef CONFIG_MACH_ES209RA
+	int sensor_int;
+	int sensor_vsync;
+	struct msm_camera_sensor_pwr standby;
+	struct msm_camera_sensor_pwr vcam_sd12;
+	struct msm_camera_sensor_pwr vcam_sdap;
+	struct msm_camera_sensor_pwr vcam_sa28;
+	struct msm_camera_sensor_pwr vcam_io;
+	struct msm_camera_sensor_pwr vcam_af30;
+
+	struct msm_camera_sensor_pwr vcam_l1;
+	struct msm_camera_sensor_pwr vcam_l2;
+ 	struct msm_camera_sensor_pwr vcam_sd;
+ 	struct msm_camera_sensor_pwr vcam_af;
+ 	struct msm_camera_sensor_pwr vcam_sa;
+ 	struct msm_camera_sensor_strobe_flash_data *strobe_flash_data;
+#else
 	struct msm_camera_sensor_pwr vcam_io;
 	struct msm_camera_sensor_pwr vcam_sd;
 	struct msm_camera_sensor_pwr vcam_af;
@@ -258,7 +287,19 @@ struct msm_camera_sensor_info {
 	char *eeprom_data;
 	enum msm_camera_type camera_type;
 	struct msm_actuator_info *actuator_info;
+#endif
 };
+
+#ifdef CONFIG_MACH_ES209RA
+struct panel_data_ext {
+	void (*power_on) (void);
+	void (*power_off) (void);
+	void (*window_adjust) (u16 x1, u16 x2, u16 y1, u16 y2);
+	void (*exit_deep_standby) (void);
+	int use_dma_edge_pixels_fix;
+	void (*backlight_ctrl) (bool);
+};
+#endif
 
 struct msm_camera_board_info {
 	struct i2c_board_info *board_info;

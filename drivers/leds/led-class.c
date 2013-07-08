@@ -275,7 +275,7 @@ void led_classdev_unregister(struct led_classdev *led_cdev)
 #endif
 
 	/* Stop blinking */
-	led_brightness_set(led_cdev, LED_OFF);
+	led_set_brightness(led_cdev, LED_OFF);
 
 	device_unregister(led_cdev->dev);
 
@@ -300,14 +300,6 @@ void led_blink_set(struct led_classdev *led_cdev,
 	led_set_software_blink(led_cdev, *delay_on, *delay_off);
 }
 EXPORT_SYMBOL(led_blink_set);
-
-void led_brightness_set(struct led_classdev *led_cdev,
-			enum led_brightness brightness)
-{
-	led_stop_software_blink(led_cdev);
-	led_cdev->brightness_set(led_cdev, brightness);
-}
-EXPORT_SYMBOL(led_brightness_set);
 
 static int __init leds_init(void)
 {

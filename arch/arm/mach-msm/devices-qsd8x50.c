@@ -26,6 +26,7 @@
 
 #include "devices.h"
 #include "gpio_hw.h"
+#include "smd_private.h"
 
 #include <asm/mach/flash.h>
 
@@ -185,6 +186,28 @@ struct platform_device msm_device_uart_dm2 = {
 
 #define MSM_I2C_SIZE          SZ_4K
 #define MSM_I2C_PHYS          0xA9900000
+#define MSM_I2C_2_PHYS        0xA9900000
+#define INT_PWB_I2C_2         INT_PWB_I2C
+
+static struct resource resources_i2c_2[] = {
+	{
+		.start	= MSM_I2C_2_PHYS,
+		.end	= MSM_I2C_2_PHYS + MSM_I2C_SIZE - 1,
+		.flags	= IORESOURCE_MEM,
+	},
+	{
+		.start	= INT_PWB_I2C_2,
+		.end	= INT_PWB_I2C_2,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device msm_device_i2c_2 = {
+	.name		= "msm_i2c",
+	.id		= 2,
+	.num_resources	= ARRAY_SIZE(resources_i2c_2),
+	.resource	= resources_i2c_2,
+};
 
 static struct resource resources_i2c[] = {
 	{
@@ -627,6 +650,77 @@ int __init msm_add_sdcc(unsigned int controller, struct mmc_platform_data *plat)
 	return platform_device_register(pdev);
 }
 
+#define RAMFS_INFO_MAGICNUMBER		0x654D4D43
+#define RAMFS_INFO_VERSION		0x00000001
+#define RAMFS_MODEMSTORAGE_ID		0x4D454653
+
+static struct resource rmt_storage_resources[] = {
+       {
+		.flags  = IORESOURCE_MEM,
+       },
+};
+
+static struct platform_device rmt_storage_device = {
+       .name           = "rmt_storage",
+       .id             = -1,
+       .num_resources  = ARRAY_SIZE(rmt_storage_resources),
+       .resource       = rmt_storage_resources,
+};
+
+struct shared_ramfs_entry {
+	uint32_t client_id;   	/* Client id to uniquely identify a client */
+	uint32_t base_addr;	/* Base address of shared RAMFS memory */
+	uint32_t size;		/* Size of the shared RAMFS memory */
+	uint32_t reserved;	/* Reserved attribute for future use */
+};
+struct shared_ramfs_table {
+	uint32_t magic_id;  	/* Identify RAMFS details in SMEM */
+	uint32_t version;	/* Version of shared_ramfs_table */
+	uint32_t entries;	/* Total number of valid entries   */
+	struct shared_ramfs_entry ramfs_entry[3];	/* List all entries */
+};
+
+int __init rmt_storage_add_ramfs(void)
+{
+	struct shared_ramfs_table *ramfs_table;
+	struct shared_ramfs_entry *ramfs_entry;
+	int index;
+
+	ramfs_table = smem_alloc(SMEM_SEFS_INFO,
+			sizeof(struct shared_ramfs_table));
+
+	if (!ramfs_table) {
+		printk(KERN_WARNING "%s: No RAMFS table in SMEM\n", __func__);
+		return -ENOENT;
+	}
+
+	if ((ramfs_table->magic_id != (u32) RAMFS_INFO_MAGICNUMBER) ||
+		(ramfs_table->version != (u32) RAMFS_INFO_VERSION)) {
+		printk(KERN_WARNING "%s: Magic / Version mismatch:, "
+		       "magic_id=%#x, format_version=%#x\n", __func__,
+		       ramfs_table->magic_id, ramfs_table->version);
+		return -ENOENT;
+	}
+
+	for (index = 0; index < ramfs_table->entries; index++) {
+		ramfs_entry = &ramfs_table->ramfs_entry[index];
+
+		/* Find a match for the Modem Storage RAMFS area */
+		if (ramfs_entry->client_id == (u32) RAMFS_MODEMSTORAGE_ID) {
+			printk(KERN_INFO "%s: RAMFS Info (from SMEM): "
+				"Baseaddr = 0x%08x, Size = 0x%08x\n", __func__,
+				ramfs_entry->base_addr, ramfs_entry->size);
+
+			rmt_storage_resources[0].start = ramfs_entry->base_addr;
+			rmt_storage_resources[0].end = ramfs_entry->base_addr +
+							ramfs_entry->size - 1;
+			platform_device_register(&rmt_storage_device);
+			return 0;
+		}
+	}
+	return -ENOENT;
+}
+
 #if defined(CONFIG_FB_MSM_MDP40)
 #define MDP_BASE          0xA3F00000
 #define PMDH_BASE         0xAD600000
@@ -731,6 +825,11 @@ static struct platform_device msm_ebi2_lcd_device = {
 
 static struct platform_device msm_lcdc_device = {
 	.name   = "lcdc",
+	.id     = 0,
+};
+
+static struct platform_device msm_dtv_device = {
+	.name   = "dtv",
 	.id     = 0,
 };
 
@@ -876,6 +975,8 @@ void __init msm_fb_register_device(char *name, void *data)
 		msm_register_device(&msm_tvenc_device, data);
 	else if (!strncmp(name, "lcdc", 4))
 		msm_register_device(&msm_lcdc_device, data);
+	else if (!strncmp(name, "dtv", 3))
+		msm_register_device(&msm_dtv_device, data);
 	else
 		printk(KERN_ERR "%s: unknown device! %s\n", __func__, name);
 }

@@ -17,8 +17,19 @@
 #ifndef	__LINUX_USB_ANDROID_H
 #define	__LINUX_USB_ANDROID_H
 
+#include <linux/if_ether.h>
+
+#define ANDROID_RNDIS		0x000A
+
 struct android_usb_platform_data {
 	int (*update_pid_and_serial_num)(uint32_t, const char *);
+};
+
+/* Platform data for USB ethernet driver. */
+struct usb_ether_platform_data {
+	u8	ethaddr[ETH_ALEN];
+	u32	vendorID;
+	const char *vendorDescr;
 };
 
 #endif	/* __LINUX_USB_ANDROID_H */

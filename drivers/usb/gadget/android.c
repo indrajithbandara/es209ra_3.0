@@ -1449,8 +1449,10 @@ android_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *c)
 	/* Special case the accessory function.
 	 * It needs to handle control requests before it is enabled.
 	 */
+	#if 0
 	if (value < 0)
 		value = acc_ctrlrequest(cdev, c);
+	#endif
 
 	if (value < 0)
 		value = composite_setup(gadget, c);

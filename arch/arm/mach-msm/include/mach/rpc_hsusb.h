@@ -100,4 +100,26 @@ static inline void msm_fsusb_rpc_deinit(void) { }
 static inline int
 usb_diag_update_pid_and_serial_num(uint32_t pid, const char *snum) { return 0; }
 #endif
+#if defined(CONFIG_MACH_ES209RA)
+int msm_hsusb_chg_is_charging(void);
+int msm_chg_battery_thermo(void);
+int msm_chg_charger_current(void);
+int msm_chg_qsd_thermo(void);
+int msm_chg_charger_thermo(void);
+#endif /* CONFIG_MACH_ES209RA */
+#if defined(CONFIG_MACH_ES209RA) && defined(CONFIG_MAX17040_FUELGAUGE)
+enum semc_charger {
+	NO_CHARGER = 0,
+	USB_CHARGER,
+	WALL_CHARGER
+};
+
+typedef void (*usb_connect_status_callback_t) (enum semc_charger connected, uint32_t current_ma);
+
+void msm_chg_rpc_register_semc_callback(usb_connect_status_callback_t connect_status_fn);
+void msm_chg_rpc_unregister_semc_callback(void);
+void msm_chg_rpc_semc_get_usb_connected(enum semc_charger *connected, u16 *max_current);
+#endif
+
+
 #endif

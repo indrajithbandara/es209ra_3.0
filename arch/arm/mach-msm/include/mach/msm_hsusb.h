@@ -127,6 +127,33 @@ struct msm_hsusb_gadget_platform_data {
 	int is_phy_status_timer_on;
 };
 
+#ifdef CONFIG_MACH_ES209RA
+struct msm_hsusb_platform_data {
+	__u16   version;
+	unsigned phy_info;
+	__u16   vendor_id;
+	char   	*product_name;
+	char   	*serial_number;
+	char   	*manufacturer_name;
+	struct usb_composition *compositions;
+	int num_compositions;
+	struct usb_function_map *function_map;
+	int num_functions;
+	/* gpio mux function used for LPM */
+	int (*config_gpio)(int config);
+	/* ROC info for AHB Mode */
+	unsigned int soc_version;
+
+	int (*phy_reset)(void __iomem *addr);
+
+	unsigned int core_clk;
+
+	int vreg5v_required;
+
+	u32 swfi_latency;
+};
+#endif
+
 struct msm_otg_platform_data {
 	int (*rpc_connect)(int);
 	int (*phy_reset)(void __iomem *);

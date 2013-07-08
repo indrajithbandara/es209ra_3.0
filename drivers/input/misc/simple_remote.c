@@ -308,13 +308,16 @@ static ssize_t simple_remote_attrs_store_property(struct device *dev,
 						  struct device_attribute *attr,
 						  const char *buf, size_t count)
 {
-	long val;
+	int ret;
+	long val;	
 
 	struct simple_remote_driver *jack = dev_get_drvdata(dev);
 
 	mutex_lock(&jack->simple_remote_mutex);
 
-	strict_strtol(buf, 10, &val);
+	ret = kstrtol(buf, 10, &val);
+	if (ret < 0)
+		return ret;
 
 	if (!strcmp(SIMPLE_REMOTE_ACC_MIN_VALS_NAME, attr->attr.name)) {
 		simple_remote_attrs_update_data(

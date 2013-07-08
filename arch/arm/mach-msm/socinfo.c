@@ -114,6 +114,17 @@ struct socinfo_v6 {
 	uint32_t hw_platform_subtype;
 };
 
+#ifdef CONFIG_MACH_ES209RA
+union socinfo {
+	struct socinfo_v1 v1;
+	struct socinfo_v2 v2;
+	struct socinfo_v3 v3;
+	struct socinfo_v4 v4;
+	struct socinfo_v5 v5;
+	struct socinfo_v6 v6;
+};
+static union socinfo *socinfo;
+#else
 static union {
 	struct socinfo_v1 v1;
 	struct socinfo_v2 v2;
@@ -122,6 +133,7 @@ static union {
 	struct socinfo_v5 v5;
 	struct socinfo_v6 v6;
 } *socinfo;
+#endif
 
 static enum msm_cpu cpu_of_id[] = {
 
@@ -623,6 +635,28 @@ void *setup_dummy_socinfo(void)
 	return (void *) &dummy_socinfo;
 }
 
+#ifdef CONFIG_MACH_ES209RA
+static struct socinfo_v3 s1_dummy_socinfo = {
+	.v2 = {
+		.v1 = {
+			.format = 3,
+#ifdef CONFIG_ARCH_MSM7X27
+			.id = 43, /* MSM_CPU_7X27 */
+#elif defined CONFIG_ARCH_QSD8X50
+			.id = 30, /* MSM_CPU_8X50 */
+#else
+#error Unkown arch, socinfo needs update.
+#endif
+			.version = 0,
+			.build_id = "N/A",
+		},
+		.raw_id = 0,
+		.raw_version = 0,
+	},
+	.hw_platform = 0,
+};
+#endif
+
 int __init socinfo_init(void)
 {
 	socinfo = smem_alloc(SMEM_HW_SW_BUILD_ID, sizeof(struct socinfo_v6));
@@ -646,6 +680,11 @@ int __init socinfo_init(void)
 	if (!socinfo)
 		socinfo = smem_alloc(SMEM_HW_SW_BUILD_ID,
 				sizeof(struct socinfo_v1));
+
+#ifdef CONFIG_MACH_ES209RA
+	if (!socinfo)
+		socinfo = (union socinfo*)&s1_dummy_socinfo;
+#endif
 
 	if (!socinfo) {
 		pr_warn("%s: Can't find SMEM_HW_SW_BUILD_ID; falling back on "

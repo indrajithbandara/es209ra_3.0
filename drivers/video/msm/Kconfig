@@ -81,6 +81,13 @@ config FB_MSM_MDP40
 	  Say Y here if this is msm7x30 variant platform.
 endchoice
 
+config FB_MSM_MDDI_TMD_NT35580
+  depends on FB_MSM
+  tristate "MDDI NT35580 LCD FWVGA Panel"
+  select FB_MSM_MDDI
+  ---help---
+    Support for MDDI NT35580 LCD FWVGA (480x854) panel
+
 config FB_MSM_EBI2
 	bool
 	default n
@@ -760,3 +767,5 @@ config FB_MSM_DEFAULT_DEPTH_RGBA8888
 endchoice
 
 endif
+
+
