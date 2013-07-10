@@ -188,6 +188,7 @@ static struct platform_device ram_console_device = {
         .id             = -1,
         .num_resources  = ARRAY_SIZE(ram_console_resources),
         .resource       = ram_console_resources,
+	.dev = { .platform_data=0,}
 };
 
 static struct usb_mass_storage_platform_data mass_storage_pdata = {
@@ -2290,12 +2291,24 @@ static void __init es209ra_allocate_memory_regions(void)
 			"pmem arena\n", size, addr, __pa(addr));
 	}
 
-	size = MSM_FB_SIZE;
-	addr = (void *)MSM_FB_BASE;
-	msm_fb_resources[0].start = (unsigned long)addr;
+	size = fb_size ? : MSM_FB_SIZE;
+	addr = alloc_bootmem_align(size, 0x1000);
+	msm_fb_resources[0].start = __pa(addr);
 	msm_fb_resources[0].end = msm_fb_resources[0].start + size - 1;
-	pr_info("using %lu bytes of SMI at %lx physical for fb\n",
-	       size, (unsigned long)addr);
+	pr_info("allocating %lu bytes at %p (%lx physical) for fb\n",
+	size, addr, __pa(addr));
+
+#ifdef CONFIG_ANDROID_RAM_CONSOLE
+	/* RAM Console can't use alloc_bootmem(), since that zeroes the
+	 * region */
+	size = MSM_RAM_CONSOLE_SIZE;
+	ram_console_resources[0].start = msm_fb_resources[0].end+1;
+	ram_console_resources[0].end = ram_console_resources[0].start + size - 1;
+	pr_info("allocating %lu bytes at (%lx physical) for ram console\n",
+		size, (unsigned long)ram_console_resources[0].start);
+	/* We still have to reserve it, though */
+	reserve_bootmem(ram_console_resources[0].start,size,0);
+#endif
 }
 
 static void __init es209ra_fixup(struct machine_desc *desc, struct tag *tags,
