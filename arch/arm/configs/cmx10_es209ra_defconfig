@@ -452,9 +452,9 @@ CONFIG_ALIGNMENT_TRAP=y
 # CONFIG_USE_OF is not set
 CONFIG_ZBOOT_ROM_TEXT=0x0
 CONFIG_ZBOOT_ROM_BSS=0x0
-CONFIG_CMDLINE="androidboot.hardware=es209ra earlyprintk initcall_debug androidboot.hardware=es209ra vmalloc=280M g_android.product_id=0x312E semcandroidboot.serialno=CB511SW0YT semcandroidboot.startup=0x0000001A semcandroidboot.000008A2=583130"
+CONFIG_CMDLINE="console=ttyMSM0"
 # CONFIG_CMDLINE_FROM_BOOTLOADER is not set
-CONFIG_CMDLINE_EXTEND=y
+# CONFIG_CMDLINE_EXTEND is not set
 # CONFIG_CMDLINE_FORCE is not set
 # CONFIG_XIP_KERNEL is not set
 # CONFIG_KEXEC is not set
