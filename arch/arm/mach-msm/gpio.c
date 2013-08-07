@@ -487,6 +487,37 @@ void msm_gpio_exit_sleep(void)
 	}
 }
 
+#ifdef CONFIG_MACH_ES209RA
+static int __init msm_init_gpio(void)
+{
+	int i, j = 0;
+
+	for (i = FIRST_GPIO_IRQ; i < FIRST_GPIO_IRQ + NR_GPIO_IRQS; i++) {
+		if (i - FIRST_GPIO_IRQ >=
+			msm_gpio_chips[j].chip.base +
+			msm_gpio_chips[j].chip.ngpio)
+			j++;
+		irq_set_chip_data(i, &msm_gpio_chips[j]);
+		irq_set_chip(i, &msm_gpio_irq_chip);
+		irq_set_handler(i, handle_edge_irq);
+		set_irq_flags(i, IRQF_VALID);
+	}
+
+	for (i = 0; i < ARRAY_SIZE(msm_gpio_chips); i++) {
+		spin_lock_init(&msm_gpio_chips[i].lock);
+		writel(0, msm_gpio_chips[i].regs.int_en);
+		gpiochip_add(&msm_gpio_chips[i].chip);
+	}
+
+	irq_set_chained_handler(INT_GPIO_GROUP1, msm_gpio_irq_handler);
+	irq_set_chained_handler(INT_GPIO_GROUP2, msm_gpio_irq_handler);
+	irq_set_irq_wake(INT_GPIO_GROUP1, 1);
+	irq_set_irq_wake(INT_GPIO_GROUP2, 2);
+	return 0;
+}
+
+postcore_initcall(msm_init_gpio);
+#endif
 
 int gpio_tlmm_config(unsigned config, unsigned disable)
 {
