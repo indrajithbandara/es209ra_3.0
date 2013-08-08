@@ -733,7 +733,7 @@ static struct vreg *vreg_gp2;
 
 static void tmd_wvga_lcd_power_on(void)
 {
-	int rc = 0;
+	/*int rc = 0;
 
 	local_irq_disable();
 
@@ -751,7 +751,7 @@ static void tmd_wvga_lcd_power_on(void)
 	}
 	local_irq_enable();
 
-	msleep(50);
+	msleep(50);*/
 	gpio_set_value(NT35580_GPIO_XRST, 1);
 	msleep(10);
 	gpio_set_value(NT35580_GPIO_XRST, 0);
