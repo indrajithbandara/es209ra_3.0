@@ -50,6 +50,7 @@
 #include <mach/pmic.h>
 #include <mach/camera.h>
 #include <mach/memory.h>
+#include <mach/msm_memtypes.h>
 #include <mach/msm_spi.h>
 #include <mach/msm_tsif.h>
 #include <mach/msm_battery.h>
@@ -107,29 +108,39 @@
 
 #define SMEM_SPINLOCK_I2C	"S:6"
 
-#define MSM_PMEM_ADSP_SIZE	0x02196000
+#define MSM_PMEM_ADSP_SIZE	0x2A05000
 #define MSM_PMEM_MDP_SIZE	0x01C91000
-#define PMEM_KERNEL_EBI1_SIZE	0x00028000
+#define MSM_PMEM_SF_SIZE	0x1700000
+#define PMEM_KERNEL_EBI1_SIZE	0x28000
+#define MSM_AUDIO_SIZE		0x80000
+
+#ifdef CONFIG_MSM_SOC_REV_A
+#define MSM_SMI_BASE		0xE0000000
+#else
+#define MSM_SMI_BASE		0x00000000
+#endif
 
 #define MSM_SHARED_RAM_PHYS	0x00100000
 
-#define MSM_PMEM_SMI_BASE	0x02B00000
+#define MSM_PMEM_SMI_BASE	(MSM_SMI_BASE + 0x02B00000)
 #define MSM_PMEM_SMI_SIZE	0x01500000
 
-#define MSM_FB_BASE		0x02B00000
+#define MSM_FB_BASE		MSM_PMEM_SMI_BASE
 
 #ifdef CONFIG_FB_MSM_TRIPLE_BUFFER
 #define MSM_FB_SIZE     0x00278780
+#define MSM_FB_NUM  3
 #else
 #define MSM_FB_SIZE     0x001B0500
+#define MSM_FB_NUM  2
 #endif
 //#define MSM_FB_SIZE		0x00300000 // 0x00500000
 
 #define MSM_GPU_PHYS_BASE 	0x03000000
 #define MSM_GPU_PHYS_SIZE 	0x00200000
 
-#define MSM_RAM_CONSOLE_START   0x38000000 - MSM_RAM_CONSOLE_SIZE
-#define MSM_RAM_CONSOLE_SIZE    128 * SZ_1K
+/*#define MSM_RAM_CONSOLE_START   0x38000000 - MSM_RAM_CONSOLE_SIZE
+#define MSM_RAM_CONSOLE_SIZE    128 * SZ_1K*/
 
 #define PMIC_VREG_WLAN_LEVEL	2600
 #define PMIC_VREG_GP6_LEVEL	2850
@@ -175,7 +186,7 @@ static struct platform_device vibrator_device = {
 };
 #endif
 
-static struct resource ram_console_resources[] = {
+/*static struct resource ram_console_resources[] = {
         [0] = {
                 .start  = MSM_RAM_CONSOLE_START,
                 .end    = MSM_RAM_CONSOLE_START+MSM_RAM_CONSOLE_SIZE-1,
@@ -189,7 +200,7 @@ static struct platform_device ram_console_device = {
         .num_resources  = ARRAY_SIZE(ram_console_resources),
         .resource       = ram_console_resources,
 	.dev = { .platform_data=0,}
-};
+};*/
 
 static struct usb_mass_storage_platform_data mass_storage_pdata = {
 	.nluns   = 1,
@@ -450,27 +461,35 @@ static struct msm_usb_host_platform_data msm_usb_host2_pdata = {
 };
 #endif
 
-static struct android_pmem_platform_data android_pmem_kernel_ebi1_pdata = {
-	.name = PMEM_KERNEL_EBI1_DATA_NAME,
+/*static struct android_pmem_platform_data android_pmem_kernel_ebi1_pdata = {
+	.name = PMEM_KERNEL_EBI1_DATA_NAME,*/
 	/* if no allocator_type, defaults to PMEM_ALLOCATORTYPE_BITMAP,
 	 * the only valid choice at this time. The board structure is
 	 * set to all zeros by the C runtime initialization and that is now
 	 * the enum value of PMEM_ALLOCATORTYPE_BITMAP, now forced to 0 in
 	 * include/linux/android_pmem.h.
 	 */
-	.cached = 0,
-};
+	/*.cached = 0,
+};*/
+
+/*static struct platform_device android_pmem_kernel_ebi1_device = {
+	.name = "android_pmem",
+	.id = 3,
+	.dev = { .platform_data = &android_pmem_kernel_ebi1_pdata },
+};*/
 
 static struct android_pmem_platform_data android_pmem_pdata = {
 	.name = "pmem",
 	.allocator_type = PMEM_ALLOCATORTYPE_BITMAP,
 	.cached = 1,
+	.memory_type = MEMTYPE_EBI1,
 };
 
 static struct android_pmem_platform_data android_pmem_adsp_pdata = {
 	.name = "pmem_adsp",
 	.allocator_type = PMEM_ALLOCATORTYPE_BITMAP,
 	.cached = 0,
+	.memory_type = MEMTYPE_EBI1,
 };
 
 static struct platform_device android_pmem_device = {
@@ -483,12 +502,6 @@ static struct platform_device android_pmem_adsp_device = {
 	.name = "android_pmem",
 	.id = 1,
 	.dev = { .platform_data = &android_pmem_adsp_pdata },
-};
-
-static struct platform_device android_pmem_kernel_ebi1_device = {
-	.name = "android_pmem",
-	.id = 3,
-	.dev = { .platform_data = &android_pmem_kernel_ebi1_pdata },
 };
 
 static struct resource msm_fb_resources[] = {
@@ -733,7 +746,7 @@ static struct vreg *vreg_gp2;
 
 static void tmd_wvga_lcd_power_on(void)
 {
-	/*int rc = 0;
+	int rc = 0;
 
 	local_irq_disable();
 
@@ -751,7 +764,7 @@ static void tmd_wvga_lcd_power_on(void)
 	}
 	local_irq_enable();
 
-	msleep(50);*/
+	msleep(50);
 	gpio_set_value(NT35580_GPIO_XRST, 1);
 	msleep(10);
 	gpio_set_value(NT35580_GPIO_XRST, 0);
@@ -798,11 +811,15 @@ static void __init msm_mddi_tmd_fwvga_display_device_init(void)
 	panel_data->panel_info.clk_rate = 200000000;
 	panel_data->panel_info.clk_min =  192000000;
 	panel_data->panel_info.clk_max =  200000000;
-	panel_data->panel_info.fb_num = 2;
+	panel_data->panel_info.fb_num = MSM_FB_NUM;
 
 	panel_data->panel_info.mddi.vdopkt = MDDI_DEFAULT_PRIM_PIX_ATTR;
 
+#ifdef CONFIG_ES209RA_DISABLE_SW_VSYNC
 	panel_data->panel_info.lcd.vsync_enable = FALSE;
+#else
+	panel_data->panel_info.lcd.vsync_enable = TRUE;
+#endif
 	panel_data->panel_info.lcd.v_back_porch = 12;
 	panel_data->panel_info.lcd.v_front_porch = 2;
 	panel_data->panel_info.lcd.v_pulse_width = 0;
@@ -1648,7 +1665,7 @@ static struct platform_device *devices[] __initdata = {
 	&msm_fb_device,
 	&msm_device_smd,
 	&msm_device_dmov,
-	&android_pmem_kernel_ebi1_device,
+	//&android_pmem_kernel_ebi1_device,
 	&android_pmem_device,
 	&android_pmem_adsp_device,
 	&msm_device_nand,
@@ -1678,7 +1695,7 @@ static struct platform_device *devices[] __initdata = {
 #ifdef CONFIG_SEMC_MSM_PMIC_VIBRATOR
 	&vibrator_device,
 #endif
-	&ram_console_device,
+	//&ram_console_device,
 #ifdef CONFIG_ES209RA_HEADSET
 	&es209ra_audio_jack_device,
 #endif
@@ -2155,11 +2172,12 @@ static void __init msm_device_i2c_init(void)
 }
 
 static unsigned pmem_kernel_ebi1_size = PMEM_KERNEL_EBI1_SIZE;
-static void __init pmem_kernel_ebi1_size_setup(char **p)
+static int __init pmem_kernel_ebi1_size_setup(char *p)
 {
-	pmem_kernel_ebi1_size = memparse(*p, p);
+	pmem_kernel_ebi1_size = memparse(p, NULL);
+	return 0;
 }
-__early_param("pmem_kernel_ebi1_size=", pmem_kernel_ebi1_size_setup);
+early_param("pmem_kernel_ebi1_size", pmem_kernel_ebi1_size_setup);
 
 static unsigned pmem_mdp_size = MSM_PMEM_MDP_SIZE;
 static void __init pmem_mdp_size_setup(char **p)
@@ -2176,6 +2194,31 @@ static int __init fb_size_setup(char *p)
 }
 early_param("fb_size", fb_size_setup);
 
+/*#ifdef CONFIG_KERNEL_PMEM_SMI_REGION
+static unsigned pmem_kernel_smi_size = MSM_PMEM_SMIPOOL_SIZE;
+static int __init pmem_kernel_smi_size_setup(char *p)
+{
+	pmem_kernel_smi_size = memparse(p, NULL);*/
+
+	/* Make sure that we don't allow more SMI memory then is
+	   available - the kernel mapping code has no way of knowing
+	   if it has gone over the edge */
+
+	/*if (pmem_kernel_smi_size > MSM_PMEM_SMIPOOL_SIZE)
+		pmem_kernel_smi_size = MSM_PMEM_SMIPOOL_SIZE;
+	return 0;
+}
+early_param("pmem_kernel_smi_size", pmem_kernel_smi_size_setup);
+#endif*/
+
+static unsigned pmem_sf_size = MSM_PMEM_SF_SIZE;
+static int __init pmem_sf_size_setup(char *p)
+{
+	pmem_sf_size = memparse(p, NULL);
+	return 0;
+}
+early_param("pmem_sf_size", pmem_sf_size_setup);
+
 static unsigned pmem_adsp_size = MSM_PMEM_ADSP_SIZE;
 static void __init pmem_adsp_size_setup(char **p)
 {
@@ -2183,6 +2226,13 @@ static void __init pmem_adsp_size_setup(char **p)
 }
 __early_param("pmem_adsp_size=", pmem_adsp_size_setup);
 
+static unsigned audio_size = MSM_AUDIO_SIZE;
+static int __init audio_size_setup(char *p)
+{
+	audio_size = memparse(p, NULL);
+	return 0;
+}
+early_param("audio_size", audio_size_setup);
 
 /* SEMC:SYS: Get startup reason - start */
 unsigned int es209ra_startup_reason = 0;
@@ -2243,7 +2293,7 @@ static void __init es209ra_init(void)
 	hsusb_chg_set_supplicants(hsusb_chg_supplied_to,
 				  ARRAY_SIZE(hsusb_chg_supplied_to));
 	qsd8x50_init_mmc();
-	//bt_power_init();
+	bt_power_init();
 	audio_gpio_init();
 	msm_device_i2c_init();
 	msm_qsd_spi_init();
@@ -2264,13 +2314,39 @@ static void __init es209ra_allocate_memory_regions(void)
 	void *addr;
 	unsigned long size;
 
-	size = pmem_kernel_ebi1_size;
+	/*size = pmem_kernel_ebi1_size;
 	if (size) {
 		addr = alloc_bootmem_aligned(size, 0x100000);
 		android_pmem_kernel_ebi1_pdata.start = __pa(addr);
 		android_pmem_kernel_ebi1_pdata.size = size;
 		pr_info("allocating %lu bytes at %p (%lx physical) for kernel"
 			" ebi1 pmem arena\n", size, addr, __pa(addr));
+	}*/
+
+/*#ifdef CONFIG_KERNEL_PMEM_SMI_REGION
+	size = pmem_kernel_smi_size;
+	if (size > MSM_PMEM_SMIPOOL_SIZE) {
+		printk(KERN_ERR "pmem kernel smi arena size %lu is too big\n",
+			size);
+
+		size = MSM_PMEM_SMIPOOL_SIZE;
+	}
+
+	android_pmem_kernel_smi_pdata.size = size;
+
+	pr_info("allocating %lu bytes at %lx (%lx physical)"
+		"for pmem kernel smi arena\n", size,
+		(long unsigned int) MSM_PMEM_SMIPOOL_BASE,
+		__pa(MSM_PMEM_SMIPOOL_BASE));
+#endif
+
+	size = pmem_sf_size;
+	if (size) {
+		addr = alloc_bootmem(size);
+		android_pmem_pdata.start = __pa(addr);
+		android_pmem_pdata.size = size;
+		pr_info("allocating %lu bytes at %p (%lx physical) for sf "
+			"pmem arena\n", size, addr, __pa(addr));
 	}
 
 	size = pmem_mdp_size;
@@ -2278,7 +2354,7 @@ static void __init es209ra_allocate_memory_regions(void)
 		addr = alloc_bootmem(size);
 		android_pmem_pdata.start = __pa(addr);
 		android_pmem_pdata.size = size;
-		pr_info("allocating %lu bytes at %p (%lx physical) for sf "
+		pr_info("allocating %lu bytes at %p (%lx physical) for mdp "
 			"pmem arena\n", size, addr, __pa(addr));
 	}
 
@@ -2289,26 +2365,91 @@ static void __init es209ra_allocate_memory_regions(void)
 		android_pmem_adsp_pdata.size = size;
 		pr_info("allocating %lu bytes at %p (%lx physical) for adsp "
 			"pmem arena\n", size, addr, __pa(addr));
-	}
+	}*/
 
-	size = fb_size ? : MSM_FB_SIZE;
+	size = MSM_FB_SIZE;
 	addr = alloc_bootmem_align(size, 0x1000);
 	msm_fb_resources[0].start = __pa(addr);
 	msm_fb_resources[0].end = msm_fb_resources[0].start + size - 1;
-	pr_info("allocating %lu bytes at %p (%lx physical) for fb\n",
-	size, addr, __pa(addr));
-
-#ifdef CONFIG_ANDROID_RAM_CONSOLE
+	pr_info("using %lu bytes of SMI at %lx physical for fb\n",
+	       size, (unsigned long)addr);
+	
+	size = audio_size ? : MSM_AUDIO_SIZE;
+	addr = alloc_bootmem(size);
+	msm_audio_resources[0].start = __pa(addr);
+	msm_audio_resources[0].end = msm_audio_resources[0].start + size - 1;
+	pr_info("allocating %lu bytes at %p (%lx physical) for audio\n",
+		size, addr, __pa(addr));
+	
+//#ifdef CONFIG_ANDROID_RAM_CONSOLE
 	/* RAM Console can't use alloc_bootmem(), since that zeroes the
 	 * region */
-	size = MSM_RAM_CONSOLE_SIZE;
+	/*size = MSM_RAM_CONSOLE_SIZE;
 	ram_console_resources[0].start = msm_fb_resources[0].end+1;
 	ram_console_resources[0].end = ram_console_resources[0].start + size - 1;
-	pr_info("allocating %lu bytes at (%lx physical) for ram console\n",
-		size, (unsigned long)ram_console_resources[0].start);
+	pr_info("allocating %lu bytes at (%lx physical) for ram console\n",*/
+		//size, (unsigned long)ram_console_resources[0].start);
 	/* We still have to reserve it, though */
-	reserve_bootmem(ram_console_resources[0].start,size,0);
+	/*reserve_bootmem(ram_console_resources[0].start,size,0);
+#endif*/
+}
+
+static struct memtype_reserve es209ra_reserve_table[] __initdata = {
+	[MEMTYPE_SMI] = {
+	},
+	[MEMTYPE_EBI0] = {
+		.flags	=	MEMTYPE_FLAGS_1M_ALIGN,
+	},
+	[MEMTYPE_EBI1] = {
+		.flags	=	MEMTYPE_FLAGS_1M_ALIGN,
+	},
+};
+
+static void __init size_pmem_devices(void)
+{
+#ifdef CONFIG_ANDROID_PMEM
+	android_pmem_adsp_pdata.size = pmem_adsp_size;
+	android_pmem_pdata.size = pmem_mdp_size;
+	//android_pmem_audio_pdata.size = pmem_audio_size;
 #endif
+}
+
+static void __init reserve_memory_for(struct android_pmem_platform_data *p)
+{
+	es209ra_reserve_table[p->memory_type].size += p->size;
+}
+
+static void __init reserve_pmem_memory(void)
+{
+#ifdef CONFIG_ANDROID_PMEM
+	reserve_memory_for(&android_pmem_adsp_pdata);
+	reserve_memory_for(&android_pmem_pdata);
+	//reserve_memory_for(&android_pmem_audio_pdata);
+	es209ra_reserve_table[MEMTYPE_EBI1].size += pmem_kernel_ebi1_size;
+#endif
+}
+
+static void __init es209ra_calculate_reserve_sizes(void)
+{
+	size_pmem_devices();
+	reserve_pmem_memory();
+}
+
+static int es209ra_paddr_to_memtype(unsigned int paddr)
+{
+	return MEMTYPE_EBI1;
+}
+
+static struct reserve_info es209ra_reserve_info __initdata = {
+	.memtype_reserve_table = es209ra_reserve_table,
+	.calculate_reserve_sizes = es209ra_calculate_reserve_sizes,
+	.paddr_to_memtype = es209ra_paddr_to_memtype,
+};
+
+static void __init es209ra_reserve(void)
+{
+	reserve_info = &es209ra_reserve_info;
+	msm_reserve();
 }
 
 static void __init es209ra_fixup(struct machine_desc *desc, struct tag *tags,
@@ -2373,6 +2514,7 @@ MACHINE_START(ES209RA, "ES209RA")
 	.fixup          = es209ra_fixup,
 #endif
 	.map_io		= es209ra_map_io,
+	.reserve	= es209ra_reserve,
 	.init_irq	= es209ra_init_irq,
 	.init_machine	= es209ra_init,
 	.timer = &msm_timer,
