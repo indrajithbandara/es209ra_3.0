@@ -112,9 +112,13 @@ static int msm_hsusb_init_rpc_ids(unsigned long vers)
 static int msm_chg_init_rpc(unsigned long vers)
 {
 	if (((vers & RPC_VERSION_MAJOR_MASK) == 0x00010000) ||
+#ifdef CONFIG_MACH_ES209RA
+	    ((vers & RPC_VERSION_MAJOR_MASK) == 0x00020000)) {
+#else
 	    ((vers & RPC_VERSION_MAJOR_MASK) == 0x00020000) ||
 	    ((vers & RPC_VERSION_MAJOR_MASK) == 0x00030000) ||
 	    ((vers & RPC_VERSION_MAJOR_MASK) == 0x00040000)) {
+#endif
 		chg_ep = msm_rpc_connect_compatible(MSM_RPC_CHG_PROG, vers,
 						     MSM_RPC_UNINTERRUPTIBLE);
 		if (IS_ERR(chg_ep))
@@ -198,6 +202,7 @@ int msm_chg_rpc_connect(void)
 		return 0;
 	}
 
+#ifndef CONFIG_MACH_ES209RA
 	chg_vers = 0x00040001;
 	if (!msm_chg_init_rpc(chg_vers))
 		goto chg_found;
@@ -205,6 +210,7 @@ int msm_chg_rpc_connect(void)
 	chg_vers = 0x00030001;
 	if (!msm_chg_init_rpc(chg_vers))
 		goto chg_found;
+#endif
 
 	chg_vers = 0x00020001;
 	if (!msm_chg_init_rpc(chg_vers))
