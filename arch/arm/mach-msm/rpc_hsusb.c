@@ -686,7 +686,6 @@ int msm_hsusb_disable_pmic_ulpidata0(void)
 }
 EXPORT_SYMBOL(msm_hsusb_disable_pmic_ulpidata0);
 
-
 /* wrapper for sending pid and serial# info to bootloader */
 int usb_diag_update_pid_and_serial_num(uint32_t pid, const char *snum)
 {
@@ -711,7 +710,6 @@ int usb_diag_update_pid_and_serial_num(uint32_t pid, const char *snum)
 
 	return 0;
 }
-
 
 #ifdef CONFIG_USB_GADGET_MSM_72K
 static enum power_supply_property hsusb_chg_props[] = {

@@ -1214,7 +1214,11 @@ static ssize_t enable_store(struct device *pdev, struct device_attribute *attr,
 		cdev->desc.bDeviceProtocol = device_desc.bDeviceProtocol;
 		if (usb_add_config(cdev, &android_config_driver,
 							android_bind_config))
+#ifdef CONFIG_MACH_ES209RA
+			//return size;
+#else
 			return size;
+#endif
 
 		usb_gadget_connect(cdev->gadget);
 		dev->enabled = true;
@@ -1507,6 +1511,31 @@ static int android_create_device(struct android_dev *dev)
 	return 0;
 }
 
+#ifdef CONFIG_MACH_ES209RA
+/*static void android_destroy_device(struct android_dev *dev)
+{
+	struct device_attribute **attrs = android_usb_attributes;
+	struct device_attribute *attr;
+
+	while ((attr = *attrs++))
+		device_remove_file(dev->dev, attr);
+	device_destroy(android_class, dev->dev->devt);
+}
+
+static int __devinit android_probe(struct platform_device *pdev)
+{
+	struct android_usb_platform_data *pdata = pdev->dev.platform_data;
+	struct android_dev *dev = _android_dev;
+
+	dev->pdata = pdata;
+
+	return 0;
+}
+
+static struct platform_driver android_platform_driver = {
+	.driver = { .name = "android_usb"},
+};*/
+#else
 static void android_destroy_device(struct android_dev *dev)
 {
 	struct device_attribute **attrs = android_usb_attributes;
@@ -1530,9 +1559,41 @@ static int __devinit android_probe(struct platform_device *pdev)
 static struct platform_driver android_platform_driver = {
 	.driver = { .name = "android_usb"},
 };
+#endif
 
 static int __init init(void)
 {
+#ifdef CONFIG_MACH_ES209RA
+struct android_dev *dev;
+	int err;
+
+	android_class = class_create(THIS_MODULE, "android_usb");
+	if (IS_ERR(android_class))
+		return PTR_ERR(android_class);
+
+	dev = kzalloc(sizeof(*dev), GFP_KERNEL);
+	if (!dev)
+		return -ENOMEM;
+
+	dev->functions = supported_functions;
+	INIT_LIST_HEAD(&dev->enabled_functions);
+	INIT_WORK(&dev->work, android_work);
+
+	err = android_create_device(dev);
+	if (err) {
+		class_destroy(android_class);
+		kfree(dev);
+		return err;
+	}
+
+	_android_dev = dev;
+
+	/* Override composite driver functions */
+	composite_driver.setup = android_setup;
+	composite_driver.disconnect = android_disconnect;
+
+	return usb_composite_probe(&android_usb_driver, android_bind);
+#else
 	struct android_dev *dev;
 	int ret;
 
@@ -1583,6 +1644,7 @@ err_dev:
 	kfree(dev);
 	class_destroy(android_class);
 	return ret;
+#endif
 }
 module_init(init);
 
