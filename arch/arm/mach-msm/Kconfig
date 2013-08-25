@@ -2362,6 +2362,13 @@ config ES209RA_BYPASS_BOOTLOADER
 	help
 	  Enable Bypass bootloader patch on the es209ra platform.
 
+config ES209RA_DISABLE_SW_VSYNC
+        bool "Disable VSYNC on ES209RA"
+        depends on MACH_ES209RA
+        default n
+        help
+          Disable the software vsync on the es209ra board.
+
 config SEMC_LOW_BATT_SHUTDOWN
 	bool "Low-Battery Shutdown support"
 	depends on (ARCH_MSM && MSM_ONCRPCROUTER)
