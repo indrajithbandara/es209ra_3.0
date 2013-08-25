@@ -108,24 +108,18 @@
 
 #define SMEM_SPINLOCK_I2C	"S:6"
 
-#define MSM_PMEM_ADSP_SIZE	0x2A05000
+#define MSM_PMEM_ADSP_SIZE	0x02196000
 #define MSM_PMEM_MDP_SIZE	0x01C91000
-#define MSM_PMEM_SF_SIZE	0x1700000
-#define PMEM_KERNEL_EBI1_SIZE	0x28000
 #define MSM_AUDIO_SIZE		0x80000
-
-#ifdef CONFIG_MSM_SOC_REV_A
-#define MSM_SMI_BASE		0xE0000000
-#else
-#define MSM_SMI_BASE		0x00000000
-#endif
+#define MSM_PMEM_SF_SIZE	0x1700000
+#define PMEM_KERNEL_EBI1_SIZE	0x00028000
 
 #define MSM_SHARED_RAM_PHYS	0x00100000
 
-#define MSM_PMEM_SMI_BASE	(MSM_SMI_BASE + 0x02B00000)
+#define MSM_PMEM_SMI_BASE	0x02B00000
 #define MSM_PMEM_SMI_SIZE	0x01500000
 
-#define MSM_FB_BASE		MSM_PMEM_SMI_BASE
+#define MSM_FB_BASE		0x02B00000
 
 #ifdef CONFIG_FB_MSM_TRIPLE_BUFFER
 #define MSM_FB_SIZE     0x00278780
@@ -139,8 +133,8 @@
 #define MSM_GPU_PHYS_BASE 	0x03000000
 #define MSM_GPU_PHYS_SIZE 	0x00200000
 
-/*#define MSM_RAM_CONSOLE_START   0x38000000 - MSM_RAM_CONSOLE_SIZE
-#define MSM_RAM_CONSOLE_SIZE    128 * SZ_1K*/
+#define MSM_RAM_CONSOLE_START   0x38000000 - MSM_RAM_CONSOLE_SIZE
+#define MSM_RAM_CONSOLE_SIZE    128 * SZ_1K
 
 #define PMIC_VREG_WLAN_LEVEL	2600
 #define PMIC_VREG_GP6_LEVEL	2850
@@ -186,7 +180,7 @@ static struct platform_device vibrator_device = {
 };
 #endif
 
-/*static struct resource ram_console_resources[] = {
+static struct resource ram_console_resources[] = {
         [0] = {
                 .start  = MSM_RAM_CONSOLE_START,
                 .end    = MSM_RAM_CONSOLE_START+MSM_RAM_CONSOLE_SIZE-1,
@@ -200,7 +194,7 @@ static struct platform_device ram_console_device = {
         .num_resources  = ARRAY_SIZE(ram_console_resources),
         .resource       = ram_console_resources,
 	.dev = { .platform_data=0,}
-};*/
+};
 
 static struct usb_mass_storage_platform_data mass_storage_pdata = {
 	.nluns   = 1,
@@ -472,12 +466,6 @@ static struct msm_usb_host_platform_data msm_usb_host2_pdata = {
 	/*.cached = 0,
 };*/
 
-/*static struct platform_device android_pmem_kernel_ebi1_device = {
-	.name = "android_pmem",
-	.id = 3,
-	.dev = { .platform_data = &android_pmem_kernel_ebi1_pdata },
-};*/
-
 static struct android_pmem_platform_data android_pmem_pdata = {
 	.name = "pmem",
 	.allocator_type = PMEM_ALLOCATORTYPE_BITMAP,
@@ -503,6 +491,12 @@ static struct platform_device android_pmem_adsp_device = {
 	.id = 1,
 	.dev = { .platform_data = &android_pmem_adsp_pdata },
 };
+
+/*static struct platform_device android_pmem_kernel_ebi1_device = {
+	.name = "android_pmem",
+	.id = 3,
+	.dev = { .platform_data = &android_pmem_kernel_ebi1_pdata },
+};*/
 
 static struct resource msm_fb_resources[] = {
 	{
@@ -1386,7 +1380,7 @@ static uint32_t camera_off_gpio_ffa_table[] = {
 	// FFA front Sensor Reset 
 	GPIO_CFG(137,  0, GPIO_CFG_INPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_16MA),
 };
-	
+
 static void config_gpio_table(uint32_t *table, int len)
 {
 	int n, rc;
@@ -1695,7 +1689,7 @@ static struct platform_device *devices[] __initdata = {
 #ifdef CONFIG_SEMC_MSM_PMIC_VIBRATOR
 	&vibrator_device,
 #endif
-	//&ram_console_device,
+	&ram_console_device,
 #ifdef CONFIG_ES209RA_HEADSET
 	&es209ra_audio_jack_device,
 #endif
@@ -2194,28 +2188,11 @@ static int __init fb_size_setup(char *p)
 }
 early_param("fb_size", fb_size_setup);
 
-/*#ifdef CONFIG_KERNEL_PMEM_SMI_REGION
-static unsigned pmem_kernel_smi_size = MSM_PMEM_SMIPOOL_SIZE;
-static int __init pmem_kernel_smi_size_setup(char *p)
-{
-	pmem_kernel_smi_size = memparse(p, NULL);*/
-
-	/* Make sure that we don't allow more SMI memory then is
-	   available - the kernel mapping code has no way of knowing
-	   if it has gone over the edge */
-
-	/*if (pmem_kernel_smi_size > MSM_PMEM_SMIPOOL_SIZE)
-		pmem_kernel_smi_size = MSM_PMEM_SMIPOOL_SIZE;
-	return 0;
-}
-early_param("pmem_kernel_smi_size", pmem_kernel_smi_size_setup);
-#endif*/
-
 static unsigned pmem_sf_size = MSM_PMEM_SF_SIZE;
 static int __init pmem_sf_size_setup(char *p)
 {
-	pmem_sf_size = memparse(p, NULL);
-	return 0;
+  pmem_sf_size = memparse(p, NULL);
+  return 0;
 }
 early_param("pmem_sf_size", pmem_sf_size_setup);
 
@@ -2229,8 +2206,8 @@ __early_param("pmem_adsp_size=", pmem_adsp_size_setup);
 static unsigned audio_size = MSM_AUDIO_SIZE;
 static int __init audio_size_setup(char *p)
 {
-	audio_size = memparse(p, NULL);
-	return 0;
+  audio_size = memparse(p, NULL);
+  return 0;
 }
 early_param("audio_size", audio_size_setup);
 
@@ -2261,7 +2238,7 @@ void smsm_wait_for_modem(void) __init;
 static void __init es209ra_init(void)
 {
 	smsm_wait_for_modem();
-	
+
 	if (socinfo_init() < 0)
 		printk(KERN_ERR "%s: socinfo_init() failed!\n", __func__);
 	printk(KERN_INFO "%s: startup_reason: 0x%08x\n",
@@ -2321,32 +2298,6 @@ static void __init es209ra_allocate_memory_regions(void)
 		android_pmem_kernel_ebi1_pdata.size = size;
 		pr_info("allocating %lu bytes at %p (%lx physical) for kernel"
 			" ebi1 pmem arena\n", size, addr, __pa(addr));
-	}*/
-
-/*#ifdef CONFIG_KERNEL_PMEM_SMI_REGION
-	size = pmem_kernel_smi_size;
-	if (size > MSM_PMEM_SMIPOOL_SIZE) {
-		printk(KERN_ERR "pmem kernel smi arena size %lu is too big\n",
-			size);
-
-		size = MSM_PMEM_SMIPOOL_SIZE;
-	}
-
-	android_pmem_kernel_smi_pdata.size = size;
-
-	pr_info("allocating %lu bytes at %lx (%lx physical)"
-		"for pmem kernel smi arena\n", size,
-		(long unsigned int) MSM_PMEM_SMIPOOL_BASE,
-		__pa(MSM_PMEM_SMIPOOL_BASE));
-#endif
-
-	size = pmem_sf_size;
-	if (size) {
-		addr = alloc_bootmem(size);
-		android_pmem_pdata.start = __pa(addr);
-		android_pmem_pdata.size = size;
-		pr_info("allocating %lu bytes at %p (%lx physical) for sf "
-			"pmem arena\n", size, addr, __pa(addr));
 	}
 
 	size = pmem_mdp_size;
@@ -2354,7 +2305,7 @@ static void __init es209ra_allocate_memory_regions(void)
 		addr = alloc_bootmem(size);
 		android_pmem_pdata.start = __pa(addr);
 		android_pmem_pdata.size = size;
-		pr_info("allocating %lu bytes at %p (%lx physical) for mdp "
+		pr_info("allocating %lu bytes at %p (%lx physical) for sf "
 			"pmem arena\n", size, addr, __pa(addr));
 	}
 
@@ -2373,25 +2324,25 @@ static void __init es209ra_allocate_memory_regions(void)
 	msm_fb_resources[0].end = msm_fb_resources[0].start + size - 1;
 	pr_info("using %lu bytes of SMI at %lx physical for fb\n",
 	       size, (unsigned long)addr);
-	
+
 	size = audio_size ? : MSM_AUDIO_SIZE;
 	addr = alloc_bootmem(size);
 	msm_audio_resources[0].start = __pa(addr);
 	msm_audio_resources[0].end = msm_audio_resources[0].start + size - 1;
 	pr_info("allocating %lu bytes at %p (%lx physical) for audio\n",
 		size, addr, __pa(addr));
-	
-//#ifdef CONFIG_ANDROID_RAM_CONSOLE
+
+#ifdef CONFIG_ANDROID_RAM_CONSOLE
 	/* RAM Console can't use alloc_bootmem(), since that zeroes the
 	 * region */
-	/*size = MSM_RAM_CONSOLE_SIZE;
+	size = MSM_RAM_CONSOLE_SIZE;
 	ram_console_resources[0].start = msm_fb_resources[0].end+1;
 	ram_console_resources[0].end = ram_console_resources[0].start + size - 1;
-	pr_info("allocating %lu bytes at (%lx physical) for ram console\n",*/
-		//size, (unsigned long)ram_console_resources[0].start);
+	pr_info("allocating %lu bytes at (%lx physical) for ram console\n",
+		size, (unsigned long)ram_console_resources[0].start);
 	/* We still have to reserve it, though */
-	/*reserve_bootmem(ram_console_resources[0].start,size,0);
-#endif*/
+	reserve_bootmem(ram_console_resources[0].start,size,0);
+#endif
 }
 
 static struct memtype_reserve es209ra_reserve_table[] __initdata = {
@@ -2514,7 +2465,7 @@ MACHINE_START(ES209RA, "ES209RA")
 	.fixup          = es209ra_fixup,
 #endif
 	.map_io		= es209ra_map_io,
-	.reserve	= es209ra_reserve,
+	.reserve  	= es209ra_reserve,
 	.init_irq	= es209ra_init_irq,
 	.init_machine	= es209ra_init,
 	.timer = &msm_timer,
