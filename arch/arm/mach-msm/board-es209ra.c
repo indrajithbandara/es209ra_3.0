@@ -381,6 +381,7 @@ static struct platform_device smc91x_device = {
 };
 #endif
 
+#if 0
 static struct msm_handset_platform_data hs_platform_data = {
 	.hs_name = "8k_handset",
 	.pwr_key_delay_ms = 500, /* 0 will disable end key */
@@ -393,6 +394,7 @@ static struct platform_device hs_device = {
 		.platform_data = &hs_platform_data,
 	},
 };
+#endif
 
 #ifdef CONFIG_USB_FS_HOST
 static struct msm_gpio fsusb_config[] = {
@@ -1679,7 +1681,7 @@ static struct platform_device *devices[] __initdata = {
 	&msm_device_uart_dm2,
 #endif
 	&msm_kgsl_3d0,
-	&hs_device,
+	//&hs_device,
 #if defined(CONFIG_TSIF) || defined(CONFIG_TSIF_MODULE)
 	&msm_device_tsif,
 #endif
