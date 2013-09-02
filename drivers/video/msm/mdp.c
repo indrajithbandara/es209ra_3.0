@@ -2209,7 +2209,11 @@ static int mdp_probe(struct platform_device *pdev)
 		size =  resource_size(&pdev->resource[0]);
 		msm_mdp_base = ioremap(pdev->resource[0].start, size);
 
+#ifdef CONFIG_MACH_ES209RA
+		MSM_FB_INFO("MDP HW Base phy_Address = 0x%x virt = 0x%x\n",
+#else
 		MSM_FB_DEBUG("MDP HW Base phy_Address = 0x%x virt = 0x%x\n",
+#endif
 			(int)pdev->resource[0].start, (int)msm_mdp_base);
 
 		if (unlikely(!msm_mdp_base))
