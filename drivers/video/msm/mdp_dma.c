@@ -1,13 +1,58 @@
-/* Copyright (c) 2008-2011, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2008-2009, Code Aurora Forum. All rights reserved.
+ * Copyright (C) 2010 Sony Ericsson Mobile Communications AB.
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 and
- * only version 2 as published by the Free Software Foundation.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *     * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *     * Redistributions in binary form must reproduce the above copyright
+ *       notice, this list of conditions and the following disclaimer in the
+ *       documentation and/or other materials provided with the distribution.
+ *     * Neither the name of Code Aurora Forum nor
+ *       the names of its contributors may be used to endorse or promote
+ *       products derived from this software without specific prior written
+ *       permission.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * Alternatively, provided that this notice is retained in full, this software
+ * may be relicensed by the recipient under the terms of the GNU General Public
+ * License version 2 ("GPL") and only version 2, in which case the provisions of
+ * the GPL apply INSTEAD OF those given above.  If the recipient relicenses the
+ * software under the GPL, then the identification text in the MODULE_LICENSE
+ * macro must be changed to reflect "GPLv2" instead of "Dual BSD/GPL".  Once a
+ * recipient changes the license terms to the GPL, subsequent recipients shall
+ * not relicense under alternate licensing terms, including the BSD or dual
+ * BSD/GPL terms.  In addition, the following license statement immediately
+ * below and between the words START and END shall also then apply when this
+ * software is relicensed under the GPL:
+ *
+ * START
+ *
+ * This program is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU General Public License version 2 and only version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
+ * details.
+ *
+ * You should have received a copy of the GNU General Public License along with
+ * this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+ *
+ * END
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
  *
  */
 
@@ -33,6 +78,13 @@
 #include "msm_fb.h"
 #include "mddihost.h"
 
+
+#ifdef CONFIG_FB_MSM_MDDI_TMD_NT35580
+#include "mddi_tmd_nt35580.h"
+#endif
+
+/* SEMC added. Todo: Remove. For temporary patch in mdp_dma2_update_lcd */
+
 static uint32 mdp_last_dma2_update_width;
 static uint32 mdp_last_dma2_update_height;
 static uint32 mdp_curr_dma2_update_width;
@@ -55,18 +107,20 @@ static void mdp_dma2_update_lcd(struct msm_fb_data_type *mfd)
 {
 	MDPIBUF *iBuf = &mfd->ibuf;
 	int mddi_dest = FALSE;
-	int cmd_mode = FALSE;
 	uint32 outBpp = iBuf->bpp;
 	uint32 dma2_cfg_reg;
 	uint8 *src;
 	uint32 mddi_ld_param;
 	uint16 mddi_vdo_packet_reg;
-#ifndef CONFIG_FB_MSM_MDP303
+	uint16 mddi_vdo_packet_descriptor = 0;
 	struct msm_fb_panel_data *pdata =
 	    (struct msm_fb_panel_data *)mfd->pdev->dev.platform_data;
-#endif
 	uint32 ystride = mfd->fbi->fix.line_length;
-	uint32 mddi_pkt_desc;
+
+#if defined(CONFIG_FB_MSM_MDDI_TMD_NT35580)
+	if (iBuf->dma_h == mfd->panel_info.yres)
+		mddi_nt35580_lcd_display_on();
+#endif
 
 	dma2_cfg_reg = DMA_PACK_ALIGN_LSB |
 		    DMA_OUT_SEL_AHB | DMA_IBUF_NONCONTIGUOUS;
@@ -90,15 +144,11 @@ static void mdp_dma2_update_lcd(struct msm_fb_data_type *mfd)
 
 	if (mfd->fb_imgType == MDP_BGR_565)
 		dma2_cfg_reg |= DMA_PACK_PATTERN_BGR;
-	else if (mfd->fb_imgType == MDP_RGBA_8888)
-		dma2_cfg_reg |= DMA_PACK_PATTERN_BGR;
 	else
 		dma2_cfg_reg |= DMA_PACK_PATTERN_RGB;
 
-	if (outBpp == 4) {
+	if (outBpp == 4)
 		dma2_cfg_reg |= DMA_IBUF_C3ALPHA_EN;
-		dma2_cfg_reg |= DMA_IBUF_FORMAT_xRGB8888_OR_ARGB8888;
-	}
 
 	if (outBpp == 2)
 		dma2_cfg_reg |= DMA_IBUF_FORMAT_RGB565;
@@ -116,7 +166,8 @@ static void mdp_dma2_update_lcd(struct msm_fb_data_type *mfd)
 			if (mfd->panel_info.pdest == DISPLAY_1) {
 				dma2_cfg_reg |= DMA_MDDI_DMAOUT_LCD_SEL_PRIMARY;
 				mddi_ld_param = 0;
-#ifdef MDDI_HOST_WINDOW_WORKAROUND
+#if defined(MDDI_HOST_WINDOW_WORKAROUND) \
+	|| defined(CONFIG_FB_MSM_MDDI_SEMC_LCD_WINDOW_ADJUST)
 				mddi_window_adjust(mfd, iBuf->dma_x,
 						   iBuf->dma_w - 1, iBuf->dma_y,
 						   iBuf->dma_h - 1);
@@ -125,7 +176,8 @@ static void mdp_dma2_update_lcd(struct msm_fb_data_type *mfd)
 				dma2_cfg_reg |=
 				    DMA_MDDI_DMAOUT_LCD_SEL_SECONDARY;
 				mddi_ld_param = 1;
-#ifdef MDDI_HOST_WINDOW_WORKAROUND
+#if defined(MDDI_HOST_WINDOW_WORKAROUND) \
+	|| defined(CONFIG_FB_MSM_MDDI_SEMC_LCD_WINDOW_ADJUST)
 				mddi_window_adjust(mfd, iBuf->dma_x,
 						   iBuf->dma_w - 1, iBuf->dma_y,
 						   iBuf->dma_h - 1);
@@ -135,11 +187,6 @@ static void mdp_dma2_update_lcd(struct msm_fb_data_type *mfd)
 			dma2_cfg_reg |= DMA_MDDI_DMAOUT_LCD_SEL_EXTERNAL;
 			mddi_ld_param = 2;
 		}
-#ifdef CONFIG_FB_MSM_MDP303
-	} else if (mfd->panel_info.type == MIPI_CMD_PANEL) {
-		cmd_mode = TRUE;
-		dma2_cfg_reg |= DMA_OUT_SEL_DSI_CMD;
-#endif
 	} else {
 		if (mfd->panel_info.pdest == DISPLAY_1) {
 			dma2_cfg_reg |= DMA_AHBM_LCD_SEL_PRIMARY;
@@ -150,12 +197,50 @@ static void mdp_dma2_update_lcd(struct msm_fb_data_type *mfd)
 		}
 	}
 
+	dma2_cfg_reg |= DMA_DITHER_EN;
+
 	src = (uint8 *) iBuf->buf;
 	/* starting input address */
 	src += iBuf->dma_x * outBpp + iBuf->dma_y * ystride;
 
 	mdp_curr_dma2_update_width = iBuf->dma_w;
 	mdp_curr_dma2_update_height = iBuf->dma_h;
+
+	/* SEMC Begin */
+#ifdef CONFIG_FB_MSM_MDDI_HITACHI_HVGA_LCD
+	/* Todo: To be removed!
+	   This is a temporary fix for a HW bug in early driver IC version.
+	*/
+	if (pdata->panel_ext->use_dma_edge_pixels_fix == 1) {
+		struct fb_info *tmp_fbi;
+		struct fb_fix_screeninfo *tmp_fix;
+		uint8 *first_packet_in_dma_window_p;
+		uint8 *last_packet_in_dma_row_p;
+		int i = 0;
+
+		tmp_fbi = mfd->fbi;
+		tmp_fix = &tmp_fbi->fix;
+
+		dma2_cfg_reg &= ~DMA_DITHER_EN;
+
+		first_packet_in_dma_window_p = tmp_fbi->screen_base +
+			(iBuf->dma_x + (iBuf->dma_y + tmp_fbi->var.yoffset) *
+			iBuf->ibuf_width) * outBpp;
+		last_packet_in_dma_row_p = first_packet_in_dma_window_p +
+						(iBuf->dma_w - 1) * outBpp;
+
+		for (i=0; i < (iBuf->dma_h - 1); i++) {
+			/* Check for not allowed data */
+			if (((last_packet_in_dma_row_p[0] & 0x3F) == 0x2a) ||
+			    ((last_packet_in_dma_row_p[0] & 0x3F) == 0x2b)) {
+				/* clr bit5 */
+				last_packet_in_dma_row_p[0] &= 0xDF;
+			}
+			last_packet_in_dma_row_p += (iBuf->ibuf_width) * outBpp;
+		}
+	}
+#endif	/* CONFIG_FB_MSM_MDDI_HITACHI_HVGA_LCD */
+	/* SEMC End */
 
 	/* MDP cmd block enable */
 	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_ON, FALSE);
@@ -166,31 +251,26 @@ static void mdp_dma2_update_lcd(struct msm_fb_data_type *mfd)
 	MDP_OUTP(MDP_CMD_DEBUG_ACCESS_BASE + 0x0188, src);
 	MDP_OUTP(MDP_CMD_DEBUG_ACCESS_BASE + 0x018C, ystride);
 #else
-	if (cmd_mode)
-		MDP_OUTP(MDP_BASE + 0x90004,
-			(mfd->panel_info.yres << 16 | mfd->panel_info.xres));
-	else
-		MDP_OUTP(MDP_BASE + 0x90004, (iBuf->dma_h << 16 | iBuf->dma_w));
-
+	MDP_OUTP(MDP_BASE + 0x90004, (iBuf->dma_h << 16 | iBuf->dma_w));
 	MDP_OUTP(MDP_BASE + 0x90008, src);
 	MDP_OUTP(MDP_BASE + 0x9000c, ystride);
 #endif
 
-	if (mfd->panel_info.bpp == 18) {
-		mddi_pkt_desc = MDDI_VDO_PACKET_DESC;
-		dma2_cfg_reg |= DMA_DSTC0G_6BITS |	/* 666 18BPP */
-		    DMA_DSTC1B_6BITS | DMA_DSTC2R_6BITS;
-	} else if (mfd->panel_info.bpp == 24) {
-		mddi_pkt_desc = MDDI_VDO_PACKET_DESC_24;
-		dma2_cfg_reg |= DMA_DSTC0G_8BITS |      /* 888 24BPP */
-			DMA_DSTC1B_8BITS | DMA_DSTC2R_8BITS;
-	} else {
-		mddi_pkt_desc = MDDI_VDO_PACKET_DESC_16;
+	/* adding dynamic setup of register */
+	if (mfd->panel_info.bpp == 16) {
+		mddi_vdo_packet_descriptor = 0x5565;
 		dma2_cfg_reg |= DMA_DSTC0G_6BITS |	/* 565 16BPP */
 		    DMA_DSTC1B_5BITS | DMA_DSTC2R_5BITS;
+	} else if (mfd->panel_info.bpp == 18) {
+		mddi_vdo_packet_descriptor = 0x5666;
+		dma2_cfg_reg |= DMA_DSTC0G_6BITS |	/* 666 18BPP */
+		    DMA_DSTC1B_6BITS | DMA_DSTC2R_6BITS;
+	} else {
+		/* assuming 24 bpp */
+		mddi_vdo_packet_descriptor = 0x5888;
+		dma2_cfg_reg |= DMA_DSTC0G_8BITS |	/* 888 24BPP */
+		    DMA_DSTC1B_8BITS | DMA_DSTC2R_8BITS;
 	}
-
-#ifndef CONFIG_FB_MSM_MDP303
 
 	if (mddi_dest) {
 #ifdef CONFIG_FB_MSM_MDP22
@@ -198,26 +278,18 @@ static void mdp_dma2_update_lcd(struct msm_fb_data_type *mfd)
 			 (iBuf->dma_y << 16) | iBuf->dma_x);
 		MDP_OUTP(MDP_CMD_DEBUG_ACCESS_BASE + 0x01a0, mddi_ld_param);
 		MDP_OUTP(MDP_CMD_DEBUG_ACCESS_BASE + 0x01a4,
-			 (mddi_pkt_desc << 16) | mddi_vdo_packet_reg);
+			 (mddi_vdo_packet_descriptor << 16) | mddi_vdo_packet_reg);
 #else
 		MDP_OUTP(MDP_BASE + 0x90010, (iBuf->dma_y << 16) | iBuf->dma_x);
 		MDP_OUTP(MDP_BASE + 0x00090, mddi_ld_param);
 		MDP_OUTP(MDP_BASE + 0x00094,
-			 (mddi_pkt_desc << 16) | mddi_vdo_packet_reg);
+			 (mddi_vdo_packet_descriptor << 16) | mddi_vdo_packet_reg);
 #endif
 	} else {
 		/* setting EBI2 LCDC write window */
 		pdata->set_rect(iBuf->dma_x, iBuf->dma_y, iBuf->dma_w,
 				iBuf->dma_h);
 	}
-#else
-	if (mfd->panel_info.type == MIPI_CMD_PANEL) {
-		/* dma_p = 0, dma_s = 1 */
-		 MDP_OUTP(MDP_BASE + 0xF1000, 0x10);
-		 /* enable dsi trigger on dma_p */
-		 MDP_OUTP(MDP_BASE + 0xF1004, 0x01);
-	}
-#endif
 
 	/* dma2 config register */
 #ifdef MDP_HW_VSYNC
@@ -274,7 +346,9 @@ enum hrtimer_restart mdp_dma2_vsync_hrtimer_handler(struct hrtimer *ht)
 
 		t = ktime_get_real();
 
-		actual_wait = ktime_to_us(ktime_sub(t, vt));
+		actual_wait =
+		    (t.tv.sec - vt.tv.sec) * 1000000 + (t.tv.nsec -
+							vt.tv.nsec) / 1000;
 		usec_diff = actual_wait - mdp_expected_usec_wait;
 
 		if ((mdp_usec_diff_threshold < usec_diff) || (usec_diff < 0))
@@ -285,40 +359,6 @@ enum hrtimer_restart mdp_dma2_vsync_hrtimer_handler(struct hrtimer *ht)
 
 	return HRTIMER_NORESTART;
 }
-
-
-#ifdef CONFIG_FB_MSM_MDP303
-static int busy_wait_cnt;
-
-void	mdp3_dsi_cmd_dma_busy_wait(struct msm_fb_data_type *mfd)
-{
-	unsigned long flag;
-	int need_wait = 0;
-
-#ifdef DSI_CLK_CTRL
-	mod_timer(&dsi_clock_timer, jiffies + HZ); /* one second */
-#endif
-
-	spin_lock_irqsave(&mdp_spin_lock, flag);
-#ifdef DSI_CLK_CTRL
-	if (mipi_dsi_clk_on == 0)
-		mipi_dsi_turn_on_clks();
-#endif
-
-	if (mfd->dma->busy == TRUE) {
-		if (busy_wait_cnt == 0)
-			INIT_COMPLETION(mfd->dma->comp);
-		busy_wait_cnt++;
-		need_wait++;
-	}
-	spin_unlock_irqrestore(&mdp_spin_lock, flag);
-
-	if (need_wait) {
-		/* wait until DMA finishes the current job */
-		wait_for_completion(&mfd->dma->comp);
-	}
-}
-#endif
 
 static void mdp_dma_schedule(struct msm_fb_data_type *mfd, uint32 term)
 {
@@ -340,7 +380,8 @@ static void mdp_dma_schedule(struct msm_fb_data_type *mfd, uint32 term)
 	if (term == MDP_DMA2_TERM)
 		mdp_pipe_ctrl(MDP_DMA2_BLOCK, MDP_BLOCK_POWER_ON, FALSE);
 
-	mdp_dma2_update_time_in_usec = ktime_to_us(mdp_dma2_last_update_time);
+	mdp_dma2_update_time_in_usec =
+	    MDP_KTIME2USEC(mdp_dma2_last_update_time);
 
 	if ((!mfd->ibuf.vsync_enable) || (!mfd->panel_info.lcd.vsync_enable)
 	    || (mfd->use_mdp_vsync)) {
@@ -427,7 +468,8 @@ static void mdp_dma_schedule(struct msm_fb_data_type *mfd, uint32 term)
 	} else {
 		ktime_t wait_time;
 
-		wait_time = ns_to_ktime(usec_wait_time * 1000);
+		wait_time.tv.sec = 0;
+		wait_time.tv.nsec = usec_wait_time * 1000;
 
 		if (msm_fb_debug_enabled) {
 			vt = ktime_get_real();
@@ -438,7 +480,6 @@ static void mdp_dma_schedule(struct msm_fb_data_type *mfd, uint32 term)
 }
 
 #ifdef MDDI_HOST_WINDOW_WORKAROUND
-static void mdp_dma2_update_sub(struct msm_fb_data_type *mfd);
 void mdp_dma2_update(struct msm_fb_data_type *mfd)
 {
 	MDPIBUF *iBuf;
@@ -458,7 +499,7 @@ void mdp_dma2_update(struct msm_fb_data_type *mfd)
 	if (upper_height >= iBuf->dma_h) {
 		mdp_dma2_update_sub(mfd);
 	} else {
-		uint32 lower_height;
+		MDPIBUF lower_height;
 
 		/* sending the upper region first */
 		lower_height = iBuf->dma_h - upper_height;
@@ -473,7 +514,7 @@ void mdp_dma2_update(struct msm_fb_data_type *mfd)
 	}
 }
 
-static void mdp_dma2_update_sub(struct msm_fb_data_type *mfd)
+void mdp_dma2_update_sub(struct msm_fb_data_type *mfd)
 #else
 void mdp_dma2_update(struct msm_fb_data_type *mfd)
 #endif
@@ -518,19 +559,14 @@ void mdp_set_dma_pan_info(struct fb_info *info, struct mdp_dirty_region *dirty,
 			  boolean sync)
 {
 	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)info->par;
-	struct fb_info *fbi = mfd->fbi;
+    struct fb_info *fbi = mfd->fbi;
 	MDPIBUF *iBuf;
 	int bpp = info->var.bits_per_pixel / 8;
 
 	down(&mfd->sem);
-
 	iBuf = &mfd->ibuf;
-	if (mfd->map_buffer)
-		iBuf->buf = (uint8 *)mfd->map_buffer->iova[0];
-	else
-		iBuf->buf = (uint8 *) info->fix.smem_start;
-
-	iBuf->buf += calc_fb_offset(mfd, fbi, bpp);
+	iBuf->buf = (uint8 *) info->fix.smem_start;
+    iBuf->buf += calc_fb_offset(mfd, fbi, bpp);
 
 	iBuf->ibuf_width = info->var.xres_virtual;
 	iBuf->bpp = bpp;

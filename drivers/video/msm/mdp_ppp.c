@@ -1,7 +1,7 @@
 /* drivers/video/msm/src/drv/mdp/mdp_ppp.c
  *
  * Copyright (C) 2007 Google Incorporated
- * Copyright (c) 2008-2009, 2012 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2008-2009, 2012 Code Aurora Forum. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -62,17 +62,13 @@ static uint32_t bytes_per_pixel[] = {
 extern uint32 mdp_plv[];
 extern struct semaphore mdp_ppp_mutex;
 
-int mdp_get_bytes_per_pixel(uint32_t format,
-				 struct msm_fb_data_type *mfd)
+uint32_t mdp_get_bytes_per_pixel(uint32_t format)
 {
-	int bpp = -EINVAL;
-	if (format == MDP_FB_FORMAT)
-		format = mfd->fb_imgType;
+	uint32_t bpp = 0;
 	if (format < ARRAY_SIZE(bytes_per_pixel))
 		bpp = bytes_per_pixel[format];
 
-	if (bpp <= 0)
-		printk(KERN_ERR "%s incorrect format %d\n", __func__, format);
+	BUG_ON(!bpp);
 	return bpp;
 }
 
@@ -1417,7 +1413,7 @@ int mdp_ppp_blit(struct fb_info *info, struct mdp_blit_req *req)
 		iBuf.mdpImg.mdpOp |= MDPOP_DITHER;
 
 	if (req->flags & MDP_BLEND_FG_PREMULT) {
-#if defined(CONFIG_FB_MSM_MDP31) || defined(CONFIG_FB_MSM_MDP303)
+#ifdef CONFIG_FB_MSM_MDP31
 		iBuf.mdpImg.mdpOp |= MDPOP_FG_PM_ALPHA;
 #else
 		put_img(p_src_file);
@@ -1489,7 +1485,7 @@ int mdp_ppp_blit(struct fb_info *info, struct mdp_blit_req *req)
 	/* MDP cmd block enable */
 	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_ON, FALSE);
 
-#ifndef CONFIG_FB_MSM_MDP22
+#ifdef CONFIG_FB_MSM_MDP31
 	mdp_start_ppp(mfd, &iBuf, req, p_src_file, p_dst_file);
 #else
 	/* bg tile fetching HW workaround */

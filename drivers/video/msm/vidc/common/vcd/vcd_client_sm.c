@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2012, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2010, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -9,9 +9,14 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA.
+ *
  */
 
-#include <media/msm/vidc_type.h>
+#include "vidc_type.h"
 #include "vcd.h"
 
 static const struct vcd_clnt_state_table *vcd_clnt_state_table[];
@@ -90,14 +95,14 @@ static u32 vcd_encode_start_in_open(struct vcd_clnt_ctxt *cctxt)
 		return VCD_ERR_ILLEGAL_OP;
 	}
 
-	if ((!cctxt->meta_mode && !cctxt->in_buf_pool.entries) ||
+	if (!cctxt->in_buf_pool.entries ||
 	    !cctxt->out_buf_pool.entries ||
-	    (!cctxt->meta_mode &&
-		 cctxt->in_buf_pool.validated != cctxt->in_buf_pool.count) ||
+	    cctxt->in_buf_pool.validated != cctxt->in_buf_pool.count ||
 	    cctxt->out_buf_pool.validated !=
 	    cctxt->out_buf_pool.count) {
-		VCD_MSG_HIGH("%s: Buffer pool is not completely setup yet",
-			__func__);
+		VCD_MSG_ERROR("Buffer pool is not completely setup yet");
+
+		return VCD_ERR_BAD_STATE;
 	}
 
 	rc = vcd_sched_add_client(cctxt);
@@ -342,7 +347,6 @@ static u32 vcd_flush_in_flushing
 static u32 vcd_flush_in_eos(struct vcd_clnt_ctxt *cctxt,
 	u32 mode)
 {
-	u32 rc = VCD_S_SUCCESS;
 	VCD_MSG_LOW("vcd_flush_in_eos:");
 
 	if (mode > VCD_FLUSH_ALL || !mode) {
@@ -352,18 +356,10 @@ static u32 vcd_flush_in_eos(struct vcd_clnt_ctxt *cctxt,
 	}
 
 	VCD_MSG_MED("Flush mode requested %d", mode);
-	if (!(cctxt->status.frame_submitted) &&
-		(!cctxt->decoding)) {
-		rc = vcd_flush_buffers(cctxt, mode);
-		if (!VCD_FAILED(rc)) {
-			VCD_MSG_HIGH("All buffers are flushed");
-			cctxt->status.mask |= (mode & VCD_FLUSH_ALL);
-			vcd_send_flush_done(cctxt, VCD_S_SUCCESS);
-		}
-	} else
-		cctxt->status.mask |= (mode & VCD_FLUSH_ALL);
 
-	return rc;
+	cctxt->status.mask |= (mode & VCD_FLUSH_ALL);
+
+	return VCD_S_SUCCESS;
 }
 
 static u32 vcd_flush_in_invalid(struct vcd_clnt_ctxt *cctxt,
@@ -378,8 +374,7 @@ static u32 vcd_flush_in_invalid(struct vcd_clnt_ctxt *cctxt,
 			cctxt->status.mask |= (mode & VCD_FLUSH_ALL);
 			vcd_send_flush_done(cctxt, VCD_S_SUCCESS);
 		}
-	} else
-		cctxt->status.mask |= (mode & VCD_FLUSH_ALL);
+	}
 	return rc;
 }
 
@@ -502,20 +497,8 @@ static u32 vcd_set_property_cmn
 	}
 
 	rc = ddl_set_property(cctxt->ddl_handle, prop_hdr, prop_val);
-	if (rc) {
-		/* Some properties aren't known to ddl that we can handle */
-		if (prop_hdr->prop_id != VCD_I_VOP_TIMING_CONSTANT_DELTA)
-			VCD_FAILED_RETURN(rc, "Failed: ddl_set_property");
-	}
-
+	VCD_FAILED_RETURN(rc, "Failed: ddl_set_property");
 	switch (prop_hdr->prop_id) {
-	case VCD_I_META_BUFFER_MODE:
-		{
-			struct vcd_property_live *live =
-			    (struct vcd_property_live *)prop_val;
-			cctxt->meta_mode = live->live;
-			break;
-		}
 	case VCD_I_LIVE:
 		{
 			struct vcd_property_live *live =
@@ -541,41 +524,12 @@ static u32 vcd_set_property_cmn
 			}
 			break;
 		}
-	case VCD_I_SET_TURBO_CLK:
-	{
-		if (cctxt->sched_clnt_hdl)
-			rc = vcd_set_perf_turbo_level(cctxt);
-		break;
-	}
-	case VCD_I_INTRA_PERIOD:
-	   {
-		  struct vcd_property_i_period *iperiod =
-			 (struct vcd_property_i_period *)prop_val;
-		  cctxt->bframe = iperiod->b_frames;
-		  break;
-	   }
-	case VCD_I_VOP_TIMING_CONSTANT_DELTA:
-	   {
-		   struct vcd_property_vop_timing_constant_delta *delta =
-			   (struct vcd_property_vop_timing_constant_delta *)
-			   prop_val;
-		   if (delta->constant_delta > 0) {
-			cctxt->time_frame_delta = delta->constant_delta;
-			rc = VCD_S_SUCCESS;
-		   } else {
-			VCD_MSG_ERROR("Frame delta must be positive");
-			rc = VCD_ERR_ILLEGAL_PARM;
-		   }
-		   break;
-	   }
-	case VCD_REQ_PERF_LEVEL:
-		rc = vcd_req_perf_level(cctxt,
-			(struct vcd_property_perf_level *)prop_val);
-		break;
+
 	default:
 		{
 			break;
 		}
+
 	}
 	return rc;
 }
@@ -584,7 +538,6 @@ static u32 vcd_get_property_cmn
     (struct vcd_clnt_ctxt *cctxt,
      struct vcd_property_hdr *prop_hdr, void *prop_val)
 {
-	int rc;
 	VCD_MSG_LOW("vcd_get_property_cmn in %d:", cctxt->clnt_state.state);
 	VCD_MSG_LOW("property Id = %d", prop_hdr->prop_id);
 	if (!prop_hdr->sz || !prop_hdr->prop_id) {
@@ -592,24 +545,7 @@ static u32 vcd_get_property_cmn
 
 		return VCD_ERR_ILLEGAL_PARM;
 	}
-	rc = ddl_get_property(cctxt->ddl_handle, prop_hdr, prop_val);
-	if (rc) {
-		/* Some properties aren't known to ddl that we can handle */
-		if (prop_hdr->prop_id != VCD_I_VOP_TIMING_CONSTANT_DELTA)
-			VCD_FAILED_RETURN(rc, "Failed: ddl_set_property");
-	}
-
-	switch (prop_hdr->prop_id) {
-	case VCD_I_VOP_TIMING_CONSTANT_DELTA:
-	{
-		struct vcd_property_vop_timing_constant_delta *delta =
-			(struct vcd_property_vop_timing_constant_delta *)
-			prop_val;
-		delta->constant_delta = cctxt->time_frame_delta;
-		rc = VCD_S_SUCCESS;
-	}
-	}
-	return rc;
+	return ddl_get_property(cctxt->ddl_handle, prop_hdr, prop_val);
 }
 
 static u32 vcd_set_buffer_requirements_cmn
@@ -760,24 +696,10 @@ static u32 vcd_fill_output_buffer_cmn
 	struct vcd_buffer_entry *buf_entry;
 	u32 result = true;
 	u32 handled = true;
-	if (!cctxt || !buffer) {
-		VCD_MSG_ERROR("%s(): Inavlid params cctxt %p buffer %p",
-					__func__, cctxt, buffer);
-		return VCD_ERR_BAD_POINTER;
-	}
+
 	VCD_MSG_LOW("vcd_fill_output_buffer_cmn in %d:",
 		    cctxt->clnt_state.state);
-	if (cctxt->status.mask & VCD_IN_RECONFIG) {
-		buffer->time_stamp = 0;
-		buffer->data_len = 0;
-		VCD_MSG_LOW("In reconfig: Return output buffer");
-		cctxt->callback(VCD_EVT_RESP_OUTPUT_DONE,
-			VCD_S_SUCCESS,
-			buffer,
-			sizeof(struct vcd_frame_data),
-			cctxt, cctxt->client_data);
-		return rc;
-	}
+
 	buf_entry = vcd_check_fill_output_buffer(cctxt, buffer);
 	if (!buf_entry)
 		return VCD_ERR_BAD_POINTER;
@@ -959,11 +881,6 @@ static void vcd_clnt_cb_in_run
 				VCD_EVT_IND_HWERRFATAL, status);
 			 break;
 		}
-	case VCD_EVT_IND_INFO_OUTPUT_RECONFIG:
-		{
-			vcd_handle_ind_info_output_reconfig(cctxt, status);
-			break;
-		}
 	default:
 		{
 			VCD_MSG_ERROR
@@ -1057,11 +974,6 @@ static void vcd_clnt_cb_in_eos
 		{
 			vcd_handle_ind_hw_err_fatal(cctxt,
 				VCD_EVT_IND_HWERRFATAL,	status);
-			break;
-		}
-	case VCD_EVT_IND_INFO_OUTPUT_RECONFIG:
-		{
-			vcd_handle_ind_info_output_reconfig(cctxt, status);
 			break;
 		}
 	default:
@@ -1176,9 +1088,6 @@ static void vcd_clnt_cb_in_flushing
 		if (frm_trans_end && !cctxt->status.frame_submitted) {
 			VCD_MSG_HIGH
 			    ("All pending frames recvd from DDL");
-			if (cctxt->status.mask & VCD_FLUSH_INPUT)
-				vcd_flush_bframe_buffers(cctxt,
-							VCD_FLUSH_INPUT);
 			if (cctxt->status.mask & VCD_FLUSH_OUTPUT)
 				vcd_flush_output_buffers(cctxt);
 			vcd_send_flush_done(cctxt, VCD_S_SUCCESS);
@@ -1287,18 +1196,18 @@ static void vcd_clnt_cb_in_stopping
 			frm_trans_end = true;
 		}
 		if (frm_trans_end && !cctxt->status.frame_submitted) {
+
 				VCD_MSG_HIGH
-					("All pending frames recvd from DDL");
-				vcd_flush_bframe_buffers(cctxt,
-							VCD_FLUSH_INPUT);
+				    ("All pending frames recvd from DDL");
 				vcd_flush_output_buffers(cctxt);
 				cctxt->status.mask &= ~VCD_FLUSH_ALL;
 				vcd_release_all_clnt_frm_transc(cctxt);
 				VCD_MSG_HIGH
-				("All buffers flushed. Enqueuing stop cmd");
+				    ("All buffers flushed. Enqueuing stop cmd");
 				vcd_client_cmd_flush_and_en_q(cctxt,
 						VCD_CMD_CODEC_STOP);
 		}
+
 	}
 }
 
@@ -1689,9 +1598,9 @@ static const struct vcd_clnt_state_table vcd_clnt_table_starting = {
 	 NULL,
 	 NULL,
 	 NULL,
-	 vcd_get_property_cmn,
 	 NULL,
-	 vcd_get_buffer_requirements_cmn,
+	 NULL,
+	 NULL,
 	 NULL,
 	 NULL,
 	 NULL,
@@ -1738,10 +1647,10 @@ static const struct vcd_clnt_state_table vcd_clnt_table_flushing = {
 	 NULL,
 	 vcd_flush_in_flushing,
 	 NULL,
-	 vcd_set_property_cmn,
-	 vcd_get_property_cmn,
 	 NULL,
-	 vcd_get_buffer_requirements_cmn,
+	 NULL,
+	 NULL,
+	 NULL,
 	 NULL,
 	 NULL,
 	 NULL,

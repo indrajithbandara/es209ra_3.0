@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2012, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2010, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -9,9 +9,14 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA.
+ *
  */
 
-#include <media/msm/vidc_type.h>
+#include "vidc_type.h"
 #include "vcd.h"
 
 static const struct vcd_dev_state_table *vcd_dev_state_table[];
@@ -213,7 +218,6 @@ u32 vcd_init_device_context(struct vcd_drv_ctxt *drv_ctxt,
 						   VCD_DEVICE_STATE_INITING,
 						   ev_code);
 	}
-	dev_ctxt->turbo_mode_set = 0;
 
 	return rc;
 }
@@ -524,8 +528,8 @@ static u32 vcd_init_cmn
 		config->map_dev_base_addr
 		|| dev_ctxt->config.un_map_dev_base_addr !=
 		config->un_map_dev_base_addr) {
-		VCD_MSG_HIGH("Device config mismatch. "
-			"VCD will be using config from 1st vcd_init");
+		VCD_MSG_ERROR("Device config mismatch");
+		VCD_MSG_HIGH("VCD will be using config from 1st vcd_init");
 	}
 
 	*driver_handle = 0;
@@ -916,9 +920,10 @@ static u32 vcd_set_dev_pwr_in_ready
 	switch (pwr_state) {
 	case VCD_PWR_STATE_SLEEP:
 		{
-			if (dev_ctxt->pwr_state == VCD_PWR_STATE_ON)
-				vcd_pause_all_sessions(dev_ctxt);
+			vcd_pause_all_sessions(dev_ctxt);
+
 			dev_ctxt->pwr_state = VCD_PWR_STATE_SLEEP;
+
 			break;
 		}
 
@@ -955,9 +960,6 @@ static void vcd_dev_cb_in_initing
 	u32 rc = VCD_S_SUCCESS;
 	u32 client_inited = false;
 	u32 fail_all_open = false;
-	struct ddl_context *ddl_context;
-
-	ddl_context = ddl_get_context();
 
 	VCD_MSG_LOW("vcd_dev_cb_in_initing:");
 
@@ -1031,8 +1033,6 @@ static void vcd_dev_cb_in_initing
 
 			tmp_client = client;
 			client = client->next;
-			if (tmp_client == dev_ctxt->cctxt_list_head)
-				fail_all_open = true;
 
 			vcd_destroy_client_context(tmp_client);
 		}
@@ -1041,10 +1041,6 @@ static void vcd_dev_cb_in_initing
 	if (!client_inited || fail_all_open) {
 		VCD_MSG_ERROR("All client open requests failed");
 
-		DDL_IDLE(ddl_context);
-
-		vcd_handle_device_init_failed(drv_ctxt,
-			DEVICE_STATE_EVENT_NUMBER(close));
 		dev_ctxt->pending_cmd = VCD_CMD_DEVICE_TERM;
 	} else {
 		if (vcd_power_event(dev_ctxt, NULL,

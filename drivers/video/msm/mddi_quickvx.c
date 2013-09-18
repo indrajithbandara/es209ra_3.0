@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, 2012 The Linux Foundation. All rights reserved.
+/* Copyright (c) 2010, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -8,6 +8,11 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA.
  *
  */
 #include <mach/pmic.h>
@@ -601,7 +606,7 @@ static void mddi_quickvx_lcd_set_backlight(struct msm_fb_data_type *mfd)
 }
 
 /* Driver Probe function */
-static int __devinit mddi_quickvx_lcd_probe(struct platform_device *pdev)
+static int __init mddi_quickvx_lcd_probe(struct platform_device *pdev)
 {
 	MDDI_MSG_DEBUG("\n%s(): id is %d", __func__, pdev->id);
 	msm_fb_add_device(pdev);
@@ -680,7 +685,6 @@ static int __init mddi_quickvx_lcd_init(void)
 		pinfo = &mddi_quickvx_panel_data0.panel_info;
 		pinfo->xres = 480;
 		pinfo->yres = 864;
-		MSM_FB_SINGLE_MODE_PANEL(pinfo);
 		pinfo->type = MDDI_PANEL;
 		pinfo->pdest = DISPLAY_1;
 		pinfo->mddi.vdopkt = MDDI_DEFAULT_PRIM_PIX_ATTR;
@@ -695,7 +699,6 @@ static int __init mddi_quickvx_lcd_init(void)
 		pinfo->lcd.vsync_enable = TRUE;
 		pinfo->lcd.refx100 = (mddi_quickvx_rows_per_second \
 			* 100)/mddi_quickvx_rows_per_refresh;
-		pinfo->mddi.is_type1 = TRUE;
 		pinfo->lcd.v_back_porch = 4;
 		pinfo->lcd.v_front_porch = 2;
 		pinfo->lcd.v_pulse_width = 2;

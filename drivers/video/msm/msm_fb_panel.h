@@ -1,13 +1,29 @@
-/* Copyright (c) 2008-2011, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2008-2009, Code Aurora Forum. All rights reserved.
+ * Copyright (C) 2010 Sony Ericsson Mobile Communications AB.
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 and
- * only version 2 as published by the Free Software Foundation.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *     * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *     * Redistributions in binary form must reproduce the above copyright
+ *       notice, this list of conditions and the following disclaimer in the
+ *       documentation and/or other materials provided with the distribution.
+ *     * Neither the name of Code Aurora nor
+ *       the names of its contributors may be used to endorse or promote
+ *       products derived from this software without specific prior written
+ *       permission.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NON-INFRINGEMENT ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+ * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
+ * OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+ * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+ * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  */
 
@@ -28,17 +44,14 @@ typedef struct panel_id_s {
 } panel_id_type;
 
 /* panel type list */
-#define NO_PANEL		0xffff	/* No Panel */
-#define MDDI_PANEL		1	/* MDDI */
-#define EBI2_PANEL		2	/* EBI2 */
-#define LCDC_PANEL		3	/* internal LCDC type */
-#define EXT_MDDI_PANEL		4	/* Ext.MDDI */
-#define TV_PANEL		5	/* TV */
-#define HDMI_PANEL		6	/* HDMI TV */
-#define DTV_PANEL		7	/* DTV */
-#define MIPI_VIDEO_PANEL	8	/* MIPI */
-#define MIPI_CMD_PANEL		9	/* MIPI */
-#define WRITEBACK_PANEL		10	/* Wifi display */
+#define NO_PANEL       0xffff	/* No Panel */
+#define MDDI_PANEL     1	/* MDDI */
+#define EBI2_PANEL     2	/* EBI2 */
+#define LCDC_PANEL     3	/* internal LCDC type */
+#define EXT_MDDI_PANEL 4	/* Ext.MDDI */
+#define TV_PANEL       5	/* TV */
+#define HDMI_PANEL     6	/* HDMI TV */
+#define DTV_PANEL      7	/* DTV */
 
 /* panel class */
 typedef enum {
@@ -52,7 +65,6 @@ typedef enum {
 typedef enum {
 	DISPLAY_1 = 0,		/* attached as first device */
 	DISPLAY_2,		/* attached on second device */
-	DISPLAY_3,              /* attached on third writeback device */
 	MAX_PHYS_TARGET_NUM,
 } DISP_TARGET_PHYS;
 
@@ -65,7 +77,6 @@ struct lcd_panel_info {
 	__u32 v_pulse_width;
 	__u32 hw_vsync_mode;
 	__u32 vsync_notifier_period;
-	__u32 rev;
 };
 
 struct lcdc_panel_info {
@@ -82,66 +93,12 @@ struct lcdc_panel_info {
 
 struct mddi_panel_info {
 	__u32 vdopkt;
-	boolean is_type1;
-};
-
-struct mipi_panel_info {
-	char mode;		/* video/cmd */
-	char interleave_mode;
-	char crc_check;
-	char ecc_check;
-	char dst_format;	/* shared by video and command */
-	char data_lane0;
-	char data_lane1;
-	char data_lane2;
-	char data_lane3;
-	char dlane_swap;	/* data lane swap */
-	char rgb_swap;
-	char b_sel;
-	char g_sel;
-	char r_sel;
-	char rx_eot_ignore;
-	char tx_eot_append;
-	char t_clk_post; /* 0xc0, DSI_CLKOUT_TIMING_CTRL */
-	char t_clk_pre;  /* 0xc0, DSI_CLKOUT_TIMING_CTRL */
-	char vc;	/* virtual channel */
-	struct mipi_dsi_phy_ctrl *dsi_phy_db;
-	/* video mode */
-	char pulse_mode_hsa_he;
-	char hfp_power_stop;
-	char hbp_power_stop;
-	char hsa_power_stop;
-	char eof_bllp_power_stop;
-	char bllp_power_stop;
-	char traffic_mode;
-	char frame_rate;
-	/* command mode */
-	char interleave_max;
-	char insert_dcs_cmd;
-	char wr_mem_continue;
-	char wr_mem_start;
-	char te_sel;
-	char stream;	/* 0 or 1 */
-	char mdp_trigger;
-	char dma_trigger;
-	uint32 dsi_pclk_rate;
-	/* The packet-size should not bet changed */
-	char no_max_pkt_size;
-	/* Clock required during LP commands */
-	char force_clk_lane_hs;
-	/* Pad width */
-	uint32 xres_pad;
-	/* Pad height */
-	uint32 yres_pad;
 };
 
 struct msm_panel_info {
 	__u32 xres;
 	__u32 yres;
 	__u32 bpp;
-	__u32 mode2_xres;
-	__u32 mode2_yres;
-	__u32 mode2_bpp;
 	__u32 type;
 	__u32 wait_cycle;
 	DISP_TARGET_PHYS pdest;
@@ -152,25 +109,20 @@ struct msm_panel_info {
 	__u32 clk_min;
 	__u32 clk_max;
 	__u32 frame_count;
+
+	/* physical size in mm */
 	__u32 width;
 	__u32 height;
-	__u32 is_3d_panel;
-	__u32 frame_rate;
 
+	union {
+		struct mddi_panel_info mddi;
+	};
 
-	struct mddi_panel_info mddi;
-	struct lcd_panel_info lcd;
-	struct lcdc_panel_info lcdc;
-
-	struct mipi_panel_info mipi;
+	union {
+		struct lcd_panel_info lcd;
+		struct lcdc_panel_info lcdc;
+	};
 };
-
-#define MSM_FB_SINGLE_MODE_PANEL(pinfo)		\
-	do {					\
-		(pinfo)->mode2_xres = 0;	\
-		(pinfo)->mode2_yres = 0;	\
-		(pinfo)->mode2_bpp = 0;		\
-	} while (0)
 
 struct msm_fb_panel_data {
 	struct msm_panel_info panel_info;
@@ -181,13 +133,8 @@ struct msm_fb_panel_data {
 
 	/* function entry chain */
 	int (*on) (struct platform_device *pdev);
-	int (*controller_on_panel_on) (struct platform_device *pdev);
 	int (*off) (struct platform_device *pdev);
-	int (*power_ctrl) (boolean enable);
-	void (*window_adjust)(u16 x1, u16 x2, u16 y1, u16 y2);
-	int power_on_panel_at_pan;
 	struct platform_device *next;
-	int (*clk_func) (int enable);
 };
 
 /*===========================================================================

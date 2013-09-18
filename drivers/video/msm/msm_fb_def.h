@@ -1,13 +1,28 @@
-/* Copyright (c) 2008-2010, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2008-2009, Code Aurora Forum. All rights reserved.
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 and
- * only version 2 as published by the Free Software Foundation.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *     * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *     * Redistributions in binary form must reproduce the above copyright
+ *       notice, this list of conditions and the following disclaimer in the
+ *       documentation and/or other materials provided with the distribution.
+ *     * Neither the name of Code Aurora nor
+ *       the names of its contributors may be used to endorse or promote
+ *       products derived from this software without specific prior written
+ *       permission.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NON-INFRINGEMENT ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+ * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
+ * OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+ * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+ * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  */
 
@@ -35,21 +50,19 @@
 #include <linux/debugfs.h>
 #include <linux/console.h>
 #include <linux/android_pmem.h>
+
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/time.h>
 #include <linux/init.h>
 #include <linux/interrupt.h>
 #include "linux/proc_fs.h"
+#include <mach/hardware.h>
 #include <linux/io.h>
 #include <linux/fb.h>
-#include <linux/platform_device.h>
-
 #include <asm/system.h>
 #include <asm/mach-types.h>
-
-#include <mach/hardware.h>
-
+#include <linux/platform_device.h>
 
 typedef s64 int64;
 typedef s32 int32;
@@ -86,14 +99,8 @@ typedef unsigned int boolean;
 #define MSM_FB_ENABLE_DBGFS
 #define FEATURE_MDDI
 
-#if defined(CONFIG_FB_MSM_DEFAULT_DEPTH_RGB565)
-#define MSMFB_DEFAULT_TYPE MDP_RGB_565
-#elif defined(CONFIG_FB_MSM_DEFAULT_DEPTH_ARGB8888)
-#define MSMFB_DEFAULT_TYPE MDP_ARGB_8888
-#elif defined(CONFIG_FB_MSM_DEFAULT_DEPTH_RGBA8888)
-#define MSMFB_DEFAULT_TYPE MDP_RGBA_8888
-#else
-#define MSMFB_DEFAULT_TYPE MDP_RGB_565
+#ifdef CONFIG_FB_MSM_MDP40
+#define MSMFB_FRAMEBUF_32
 #endif
 
 #define outp32(addr, val) writel(val, addr)
@@ -190,15 +197,10 @@ extern u32 msm_fb_msg_level;
 unsigned char *msm_mdp_base;
 unsigned char *msm_pmdh_base;
 unsigned char *msm_emdh_base;
-unsigned char *mipi_dsi_base;
 #else
 extern unsigned char *msm_mdp_base;
 extern unsigned char *msm_pmdh_base;
 extern unsigned char *msm_emdh_base;
-extern unsigned char *mipi_dsi_base;
 #endif
-
-#undef ENABLE_MDDI_MULTI_READ_WRITE
-#undef ENABLE_FWD_LINK_SKEW_CALIBRATION
 
 #endif /* MSM_FB_DEF_H */

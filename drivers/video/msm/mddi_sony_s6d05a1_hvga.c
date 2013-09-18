@@ -22,16 +22,8 @@
 #include <linux/fb.h>
 #include <linux/delay.h>
 #include <linux/mutex.h>
-#include <generated/autoconf.h>
+#include <linux/autoconf.h>
 #include <linux/mddi_sony_s6d05a1_hvga.h>
-
-#if defined(CONFIG_MACH_SEMC_SATSUMA) || defined(CONFIG_MACH_SEMC_SMULTRON)
-	#define REFRESH_RATE 6500
-#elif defined(CONFIG_MACH_SEMC_MANGO)
-	#define REFRESH_RATE 6400
-#else
-	#define REFRESH_RATE 6500
-#endif
 
 /* Internal version number */
 #define MDDI_DRIVER_VERSION 0x0003
@@ -210,7 +202,7 @@ static void sony_lcd_dbc_on(void)
 		MDDI_DEBUG(LEVEL_PARAM, "dbc_ctrl = %d\n", dbc_ctrl);
 
 		/* Manual brightness */
-		write_client_reg_nbr(0x51, 0x000000FD, 0, 0, 0, 1);
+		write_client_reg_nbr(0x51, 0x000000FF, 0, 0, 0, 1);
 
 		/* Minimum Brightness */
 		write_client_reg_nbr(0x5E, 0x00000000, 0, 0, 0, 1);
@@ -341,10 +333,10 @@ static void sony_lcd_driver_init(struct platform_device *pdev)
 				0x15161C22, 0x00000003, 4);
 
 		/* MIECTRL */
-		write_client_reg_nbr(0xC0, 0x00108036, 0, 0, 0, 1);
+		write_client_reg_nbr(0xC0, 0x00108010, 0, 0, 0, 1);
 
 		/* BCMODE */
-		write_client_reg_nbr(0xC1, 0x00000013, 0, 0, 0, 1);
+		write_client_reg_nbr(0xC1, 0x00000012, 0, 0, 0, 1);
 
 		/* WRMIECTL */
 		write_client_reg_nbr(0xC2, 0x01000008, 0x010000DF,
@@ -981,7 +973,7 @@ static void __init msm_mddi_sony_hvga_display_device_init(void)
 
 	panel_data->panel_info.lcd.vsync_enable = TRUE;
 	/*panel_data->panel_info.lcd.vsync_enable = FALSE;*/
-	panel_data->panel_info.lcd.refx100 = REFRESH_RATE;
+	panel_data->panel_info.lcd.refx100 = 6500;
 	panel_data->panel_info.lcd.v_back_porch = 8;
 	panel_data->panel_info.lcd.v_front_porch = 8;
 	panel_data->panel_info.lcd.v_pulse_width = 0;

@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2012, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2010-2011, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -9,9 +9,14 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA.
+ *
  */
 
-#include <media/msm/vidc_type.h>
+#include "vidc_type.h"
 
 #include "vcd_ddl_utils.h"
 #include "vcd_ddl_metadata.h"
@@ -21,8 +26,6 @@
 #else
 #define DBG(x...)
 #endif
-
-#define DBG_INFO(x...) pr_info(x)
 
 void ddl_core_init(struct ddl_context *ddl_context)
 {
@@ -50,9 +53,6 @@ void ddl_core_init(struct ddl_context *ddl_context)
 	intr_mask |= VIDC_720P_INTR_FRAME_DONE;
 
 	vidc_720p_do_sw_reset();
-
-	DBG_INFO("Loading CONTROL_FW of FW_SIZE %u\n",
-		fw_details.fw_size*4);
 
 	vidc_720p_init(&psz_version,
 			fw_details.fw_size,
@@ -100,8 +100,6 @@ void ddl_channel_set(struct ddl_client_context *ddl)
 	struct vcd_fw_details fw_details;
 
 	if (ddl->decoding) {
-		if (vidc_msg_timing)
-			ddl_set_core_start_time(__func__, DEC_OP_TIME);
 		enc_dec_sel = VIDC_720P_DECODER;
 		fw_property_id = VCD_FW_DECODE;
 		vcd_codec = &(ddl->codec_data.decoder.codec.codec);
@@ -166,9 +164,6 @@ void ddl_channel_set(struct ddl_client_context *ddl)
 	ddl_move_command_state(ddl->ddl_context, DDL_CMD_CHANNEL_SET);
 	ddl_move_client_state(ddl, DDL_CLIENT_WAIT_FOR_CHDONE);
 
-	DBG_INFO("Loading firmware for CODEC:%u of FW_SIZE:%u\n",
-		fw_details.codec, fw_details.fw_size*4);
-
 	vidc_720p_set_channel(ddl->channel_id,
 			       enc_dec_sel,
 			       codec,
@@ -182,8 +177,7 @@ void ddl_decode_init_codec(struct ddl_client_context *ddl)
 	struct ddl_decoder_data *decoder = &(ddl->codec_data.decoder);
 	struct vcd_sequence_hdr *seq_hdr = &decoder->decode_config;
 	enum vidc_720p_memory_access_method mem_access_method;
-	if (vidc_msg_timing)
-		ddl_set_core_start_time(__func__, DEC_OP_TIME);
+
 	ddl_metadata_enable(ddl);
 
 	vidc_720p_decode_set_error_control(true);
@@ -199,8 +193,7 @@ void ddl_decode_init_codec(struct ddl_client_context *ddl)
 			   decoder->h264Vsp_temp_buffer.buffer_size);
 	}
 
-	if (decoder->codec.codec == VCD_CODEC_VC1_RCV ||
-		decoder->codec.codec == VCD_CODEC_VC1) {
+	if (decoder->codec.codec == VCD_CODEC_VC1_RCV) {
 		vidc_720p_set_frame_size(decoder->client_frame_size.width,
 			decoder->client_frame_size.height);
 	} else {
@@ -771,14 +764,12 @@ u32 ddl_decode_set_buffers(struct ddl_client_context *ddl)
 	struct ddl_decoder_data *decoder = &(ddl->codec_data.decoder);
 	u32 comv_buf_size = DDL_COMV_BUFLINE_NO, comv_buf_no = 0;
 	u32 ref_buf_no = 0;
-	struct ddl_context  *ddl_ctxt = NULL;
 
 	if (!DDLCLIENT_STATE_IS(ddl, DDL_CLIENT_WAIT_FOR_DPB)) {
 		VIDC_LOG_STRING("STATE-CRITICAL");
 		return VCD_ERR_FAIL;
 	}
-	if (vidc_msg_timing)
-		ddl_set_core_start_time(__func__, DEC_OP_TIME);
+
 	switch (decoder->codec.codec) {
 	default:
 	case VCD_CODEC_DIVX_4:
@@ -807,13 +798,8 @@ u32 ddl_decode_set_buffers(struct ddl_client_context *ddl)
 		}
 	case VCD_CODEC_H264:
 		{
-			if (decoder->idr_only_decoding)
-				comv_buf_no = decoder->min_dpb_num;
-			else
-				comv_buf_no =
-					decoder->
-					client_output_buf_req.
-					actual_count;
+			comv_buf_no =
+			    decoder->client_output_buf_req.actual_count;
 			break;
 		}
 	}
@@ -823,7 +809,7 @@ u32 ddl_decode_set_buffers(struct ddl_client_context *ddl)
 			(decoder->client_frame_size.stride >> 4) *
 			((decoder->client_frame_size.scan_lines >> 4) + 1));
 		if (decoder->dpb_comv_buffer.virtual_base_addr)
-			ddl_pmem_free(&decoder->dpb_comv_buffer);
+			ddl_pmem_free(decoder->dpb_comv_buffer);
 		ddl_pmem_alloc(&decoder->dpb_comv_buffer, comv_buf_size,
 			       DDL_LINEAR_BUFFER_ALIGN_BYTES);
 		if (!decoder->dpb_comv_buffer.virtual_base_addr) {
@@ -838,35 +824,22 @@ u32 ddl_decode_set_buffers(struct ddl_client_context *ddl)
 	}
 	decoder->ref_buffer.align_physical_addr = NULL;
 	if (ref_buf_no) {
-		size_t sz, align_bytes, y_sz, frm_sz;
-		u32 i = 0;
+		size_t sz, align_bytes;
 		sz = decoder->dp_buf.dec_pic_buffers[0].vcd_frm.alloc_len;
-		frm_sz = sz;
-		y_sz = decoder->client_frame_size.height *
-				decoder->client_frame_size.width;
 		sz *= ref_buf_no;
 		align_bytes = decoder->client_output_buf_req.align;
 		if (decoder->ref_buffer.virtual_base_addr)
-			ddl_pmem_free(&decoder->ref_buffer);
+			ddl_pmem_free(decoder->ref_buffer);
 		ddl_pmem_alloc(&decoder->ref_buffer, sz, align_bytes);
 		if (!decoder->ref_buffer.virtual_base_addr) {
-			ddl_pmem_free(&decoder->dpb_comv_buffer);
+			ddl_pmem_free(decoder->dpb_comv_buffer);
 			VIDC_LOGERR_STRING
 			    ("Dec_set_buf:mpeg_ref_buf_alloc_failed");
 			return VCD_ERR_ALLOC_FAIL;
 		}
-		memset((u8 *)decoder->ref_buffer.virtual_base_addr,
-			0x80, sz);
-		for (i = 0; i < ref_buf_no; i++)
-			memset((u8 *)decoder->ref_buffer.align_virtual_addr +
-				i*frm_sz, 0x10, y_sz);
 	}
 	ddl_decode_set_metadata_output(decoder);
 	ddl_decoder_dpb_transact(decoder, NULL, DDL_DPB_OP_INIT);
-	ddl_ctxt = ddl_get_context();
-	vidc_720p_set_deblock_line_buffer(
-		ddl_ctxt->db_line_buffer.align_physical_addr,
-		ddl_ctxt->db_line_buffer.buffer_size);
 	ddl_move_client_state(ddl, DDL_CLIENT_WAIT_FOR_DPBDONE);
 	ddl_move_command_state(ddl->ddl_context, DDL_CMD_DECODE_SET_DPB);
 
@@ -882,10 +855,7 @@ void ddl_decode_frame_run(struct ddl_client_context *ddl)
 	struct ddl_decoder_data *decoder = &ddl->codec_data.decoder;
 	struct vcd_frame_data *bit_stream =
 	    &(ddl->input_frame.vcd_frm);
-	if (vidc_msg_timing) {
-		ddl_set_core_start_time(__func__, DEC_OP_TIME);
-		ddl_set_core_start_time(__func__, DEC_IP_TIME);
-	}
+
 	if (!bit_stream->data_len ||
 		!bit_stream->physical) {
 		ddl_decode_eos_run(ddl);

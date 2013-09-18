@@ -1,13 +1,57 @@
-/* Copyright (c) 2008-2009, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2008-2009, Code Aurora Forum. All rights reserved.
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 and
- * only version 2 as published by the Free Software Foundation.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *     * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *     * Redistributions in binary form must reproduce the above copyright
+ *       notice, this list of conditions and the following disclaimer in the
+ *       documentation and/or other materials provided with the distribution.
+ *     * Neither the name of Code Aurora Forum nor
+ *       the names of its contributors may be used to endorse or promote
+ *       products derived from this software without specific prior written
+ *       permission.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * Alternatively, provided that this notice is retained in full, this software
+ * may be relicensed by the recipient under the terms of the GNU General Public
+ * License version 2 ("GPL") and only version 2, in which case the provisions of
+ * the GPL apply INSTEAD OF those given above.  If the recipient relicenses the
+ * software under the GPL, then the identification text in the MODULE_LICENSE
+ * macro must be changed to reflect "GPLv2" instead of "Dual BSD/GPL".  Once a
+ * recipient changes the license terms to the GPL, subsequent recipients shall
+ * not relicense under alternate licensing terms, including the BSD or dual
+ * BSD/GPL terms.  In addition, the following license statement immediately
+ * below and between the words START and END shall also then apply when this
+ * software is relicensed under the GPL:
+ *
+ * START
+ *
+ * This program is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU General Public License version 2 and only version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
+ * details.
+ *
+ * You should have received a copy of the GNU General Public License along with
+ * this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+ *
+ * END
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
  *
  */
 
@@ -29,7 +73,6 @@
 #include <linux/clk.h>
 #include <mach/clk.h>
 #include <linux/platform_device.h>
-#include <linux/pm_runtime.h>
 
 #include "msm_fb.h"
 #include "mddihosti.h"
@@ -51,29 +94,6 @@ static void mddi_ext_early_suspend(struct early_suspend *h);
 static void mddi_ext_early_resume(struct early_suspend *h);
 #endif
 
-static int mddi_ext_runtime_suspend(struct device *dev)
-{
-	dev_dbg(dev, "pm_runtime: suspending...\n");
-	return 0;
-}
-
-static int mddi_ext_runtime_resume(struct device *dev)
-{
-	dev_dbg(dev, "pm_runtime: resuming...\n");
-	return 0;
-}
-
-static int mddi_ext_runtime_idle(struct device *dev)
-{
-	dev_dbg(dev, "pm_runtime: idling...\n");
-	return 0;
-}
-static struct dev_pm_ops mddi_ext_dev_pm_ops = {
-	.runtime_suspend = mddi_ext_runtime_suspend,
-	.runtime_resume = mddi_ext_runtime_resume,
-	.runtime_idle = mddi_ext_runtime_idle,
-};
-
 static struct platform_driver mddi_ext_driver = {
 	.probe = mddi_ext_probe,
 	.remove = mddi_ext_remove,
@@ -87,13 +107,11 @@ static struct platform_driver mddi_ext_driver = {
 	.resume = NULL,
 	.shutdown = NULL,
 	.driver = {
-		.name = "mddi_ext",
-		.pm = &mddi_ext_dev_pm_ops,
+		   .name = "mddi_ext",
 		   },
 };
 
 static struct clk *mddi_ext_clk;
-static struct clk *mddi_ext_pclk;
 static struct mddi_platform_data *mddi_ext_pdata;
 
 extern int int_mddi_ext_flag;
@@ -104,7 +122,7 @@ static int mddi_ext_off(struct platform_device *pdev)
 
 	ret = panel_next_off(pdev);
 	mddi_host_stop_ext_display();
-	pm_runtime_put(&pdev->dev);
+
 	return ret;
 }
 
@@ -115,7 +133,7 @@ static int mddi_ext_on(struct platform_device *pdev)
 	struct msm_fb_data_type *mfd;
 
 	mfd = platform_get_drvdata(pdev);
-	pm_runtime_get(&pdev->dev);
+
 	clk_rate = mfd->fbi->var.pixclock;
 	clk_rate = min(clk_rate, mfd->panel_info.clk_max);
 
@@ -126,9 +144,8 @@ static int mddi_ext_on(struct platform_device *pdev)
 			  "%s: can't select mddi io clk targate rate = %d\n",
 			  __func__, clk_rate);
 
-	clk_rate = clk_round_rate(mddi_ext_clk, clk_rate);
-	if (clk_set_rate(mddi_ext_clk, clk_rate) < 0)
-		printk(KERN_ERR "%s: clk_set_rate failed\n",
+	if (clk_set_min_rate(mddi_ext_clk, clk_rate) < 0)
+		printk(KERN_ERR "%s: clk_set_min_rate failed\n",
 			__func__);
 
 	mddi_host_start_ext_display();
@@ -228,12 +245,7 @@ static int mddi_ext_probe(struct platform_device *pdev)
 	 * set driver data
 	 */
 	platform_set_drvdata(mdp_dev, mfd);
-	rc = pm_runtime_set_active(&pdev->dev);
-	if (rc < 0)
-		printk(KERN_ERR "pm_runtime: fail to set active\n");
 
-	rc = 0;
-	pm_runtime_enable(&pdev->dev);
 	/*
 	 * register in mdp driver
 	 */
@@ -266,10 +278,10 @@ static int mddi_ext_suspend(struct platform_device *pdev, pm_message_t state)
 
 	mddi_ext_is_in_suspend = 1;
 
-	clk_disable(mddi_ext_clk);
-	if (mddi_ext_pclk)
-		clk_disable(mddi_ext_pclk);
+	if (clk_set_min_rate(mddi_ext_clk, 0) < 0)
+		printk(KERN_ERR "%s: clk_set_min_rate failed\n", __func__);
 
+	clk_disable(mddi_ext_clk);
 	disable_irq(INT_MDDI_EXT);
 
 	return 0;
@@ -288,8 +300,6 @@ static int mddi_ext_resume(struct platform_device *pdev)
 	enable_irq(INT_MDDI_EXT);
 
 	clk_enable(mddi_ext_clk);
-	if (mddi_ext_pclk)
-		clk_enable(mddi_ext_pclk);
 
 	return 0;
 }
@@ -315,7 +325,6 @@ static void mddi_ext_early_resume(struct early_suspend *h)
 
 static int mddi_ext_remove(struct platform_device *pdev)
 {
-	pm_runtim_disable(&pdev->dev);
 	iounmap(msm_emdh_base);
 	return 0;
 }
@@ -336,20 +345,10 @@ static int __init mddi_ext_driver_init(void)
 	}
 	clk_enable(mddi_ext_clk);
 
-	mddi_ext_pclk = clk_get(NULL, "emdh_pclk");
-	if (IS_ERR(mddi_ext_pclk))
-		mddi_ext_pclk = NULL;
-	else
-		clk_enable(mddi_ext_pclk);
-
 	ret = mddi_ext_register_driver();
 	if (ret) {
 		clk_disable(mddi_ext_clk);
 		clk_put(mddi_ext_clk);
-		if (mddi_ext_pclk) {
-			clk_disable(mddi_ext_pclk);
-			clk_put(mddi_ext_pclk);
-		}
 		printk(KERN_ERR "mddi_ext_register_driver() failed!\n");
 		return ret;
 	}

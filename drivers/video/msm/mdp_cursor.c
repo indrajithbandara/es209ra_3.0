@@ -1,13 +1,57 @@
-/* Copyright (c) 2008-2009, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2008-2009, Code Aurora Forum. All rights reserved.
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 and
- * only version 2 as published by the Free Software Foundation.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *     * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *     * Redistributions in binary form must reproduce the above copyright
+ *       notice, this list of conditions and the following disclaimer in the
+ *       documentation and/or other materials provided with the distribution.
+ *     * Neither the name of Code Aurora Forum nor
+ *       the names of its contributors may be used to endorse or promote
+ *       products derived from this software without specific prior written
+ *       permission.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * Alternatively, provided that this notice is retained in full, this software
+ * may be relicensed by the recipient under the terms of the GNU General Public
+ * License version 2 ("GPL") and only version 2, in which case the provisions of
+ * the GPL apply INSTEAD OF those given above.  If the recipient relicenses the
+ * software under the GPL, then the identification text in the MODULE_LICENSE
+ * macro must be changed to reflect "GPLv2" instead of "Dual BSD/GPL".  Once a
+ * recipient changes the license terms to the GPL, subsequent recipients shall
+ * not relicense under alternate licensing terms, including the BSD or dual
+ * BSD/GPL terms.  In addition, the following license statement immediately
+ * below and between the words START and END shall also then apply when this
+ * software is relicensed under the GPL:
+ *
+ * START
+ *
+ * This program is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU General Public License version 2 and only version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
+ * details.
+ *
+ * You should have received a copy of the GNU General Public License along with
+ * this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+ *
+ * END
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
  *
  */
 
@@ -34,168 +78,6 @@
 
 static int cursor_enabled;
 
-#include "mdp4.h"
-
-#if	defined(CONFIG_FB_MSM_OVERLAY) && defined(CONFIG_FB_MSM_MDP40)
-static struct workqueue_struct *mdp_cursor_ctrl_wq;
-static struct work_struct mdp_cursor_ctrl_worker;
-
-/* cursor configuration */
-static void *cursor_buf_phys;
-static __u32 width, height, bg_color;
-static int calpha_en, transp_en, alpha;
-static int sync_disabled = -1;
-
-void mdp_cursor_ctrl_workqueue_handler(struct work_struct *work)
-{
-	unsigned long flag;
-
-	/* disable vsync */
-	spin_lock_irqsave(&mdp_spin_lock, flag);
-	mdp_disable_irq(MDP_OVERLAY0_TERM);
-	spin_unlock_irqrestore(&mdp_spin_lock, flag);
-}
-
-void mdp_hw_cursor_init(void)
-{
-	mdp_cursor_ctrl_wq =
-			create_singlethread_workqueue("mdp_cursor_ctrl_wq");
-	INIT_WORK(&mdp_cursor_ctrl_worker, mdp_cursor_ctrl_workqueue_handler);
-}
-
-void mdp_hw_cursor_done(void)
-{
-	/* Cursor configuration:
-	 *
-	 * This is done in DMA_P_DONE ISR because the following registers are
-	 * not double buffered in hardware:
-	 *
-	 * MDP_DMA_P_CURSOR_SIZE, address = 0x90044
-	 * MDP_DMA_P_CURSOR_BLEND_CONFIG, address = 0x90060
-	 * MDP_DMA_P_CURSOR_BLEND_PARAM, address = 0x90064
-	 * MDP_DMA_P_CURSOR_BLEND_TRANS_LOW, address = 0x90068
-	 * MDP_DMA_P_CURSOR_BLEND_TRANS_HIG, address = 0x9006C
-	 *
-	 * Moving this code out of the ISR will cause the MDP to underrun!
-	 */
-	spin_lock(&mdp_spin_lock);
-	if (sync_disabled) {
-		spin_unlock(&mdp_spin_lock);
-		return;
-	}
-
-	MDP_OUTP(MDP_BASE + 0x90044, (height << 16) | width);
-	MDP_OUTP(MDP_BASE + 0x90048, cursor_buf_phys);
-
-	MDP_OUTP(MDP_BASE + 0x90060,
-		 (transp_en << 3) | (calpha_en << 1) |
-		 (inp32(MDP_BASE + 0x90060) & 0x1));
-
-	MDP_OUTP(MDP_BASE + 0x90064, (alpha << 24));
-	MDP_OUTP(MDP_BASE + 0x90068, (0xffffff & bg_color));
-	MDP_OUTP(MDP_BASE + 0x9006C, (0xffffff & bg_color));
-
-	/* enable/disable the cursor as per the last request */
-	if (cursor_enabled && !(inp32(MDP_BASE + 0x90060) & (0x1)))
-		MDP_OUTP(MDP_BASE + 0x90060, inp32(MDP_BASE + 0x90060) | 0x1);
-	else if (!cursor_enabled && (inp32(MDP_BASE + 0x90060) & (0x1)))
-		MDP_OUTP(MDP_BASE + 0x90060,
-					inp32(MDP_BASE + 0x90060) & (~0x1));
-
-	/* enqueue the task to disable MDP interrupts */
-	queue_work(mdp_cursor_ctrl_wq, &mdp_cursor_ctrl_worker);
-
-	/* update done */
-	sync_disabled = 1;
-	spin_unlock(&mdp_spin_lock);
-}
-
-static void mdp_hw_cursor_enable_vsync(void)
-{
-	/* if the cursor registers were updated (once or more) since the
-	 * last vsync, enable the vsync interrupt (if not already enabled)
-	 * for the next update
-	 */
-	if (sync_disabled) {
-
-		/* cancel pending task to disable MDP interrupts */
-		if (work_pending(&mdp_cursor_ctrl_worker))
-			cancel_work_sync(&mdp_cursor_ctrl_worker);
-		else
-			/* enable irq */
-			mdp_enable_irq(MDP_OVERLAY0_TERM);
-
-		sync_disabled = 0;
-
-		/* enable vsync intr */
-		outp32(MDP_INTR_CLEAR, INTR_OVERLAY0_DONE);
-		mdp_intr_mask |= INTR_OVERLAY0_DONE;
-		outp32(MDP_INTR_ENABLE, mdp_intr_mask);
-	}
-}
-
-int mdp_hw_cursor_sync_update(struct fb_info *info, struct fb_cursor *cursor)
-{
-	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)info->par;
-	struct fb_image *img = &cursor->image;
-	unsigned long flag;
-	int sync_needed = 0, ret = 0;
-
-	if ((img->width > MDP_CURSOR_WIDTH) ||
-	    (img->height > MDP_CURSOR_HEIGHT) ||
-	    (img->depth != 32))
-		return -EINVAL;
-
-	if (cursor->set & FB_CUR_SETPOS)
-		MDP_OUTP(MDP_BASE + 0x9004c, (img->dy << 16) | img->dx);
-
-	if (cursor->set & FB_CUR_SETIMAGE) {
-		ret = copy_from_user(mfd->cursor_buf, img->data,
-					img->width*img->height*4);
-		if (ret)
-			return ret;
-
-		spin_lock_irqsave(&mdp_spin_lock, flag);
-		if (img->bg_color == 0xffffffff)
-			transp_en = 0;
-		else
-			transp_en = 1;
-
-		alpha = (img->fg_color & 0xff000000) >> 24;
-
-		if (alpha)
-			calpha_en = 0x2; /* xrgb */
-		else
-			calpha_en = 0x1; /* argb */
-
-		/* cursor parameters */
-		height = img->height;
-		width = img->width;
-		bg_color = img->bg_color;
-		cursor_buf_phys = mfd->cursor_buf_phys;
-
-		sync_needed = 1;
-	} else
-		spin_lock_irqsave(&mdp_spin_lock, flag);
-
-	if ((cursor->enable) && (!cursor_enabled)) {
-		cursor_enabled = 1;
-		sync_needed = 1;
-	} else if ((!cursor->enable) && (cursor_enabled)) {
-		cursor_enabled = 0;
-		sync_needed = 1;
-	}
-
-	/* if sync cursor update is needed, enable vsync */
-	if (sync_needed)
-		mdp_hw_cursor_enable_vsync();
-
-	spin_unlock_irqrestore(&mdp_spin_lock, flag);
-
-	return 0;
-}
-#endif /* CONFIG_FB_MSM_OVERLAY && CONFIG_FB_MSM_MDP40 */
-
 int mdp_hw_cursor_update(struct fb_info *info, struct fb_cursor *cursor)
 {
 	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)info->par;
@@ -209,7 +91,6 @@ int mdp_hw_cursor_update(struct fb_info *info, struct fb_cursor *cursor)
 	    (img->depth != 32))
 		return -EINVAL;
 
-	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_ON, FALSE);
 	if (cursor->set & FB_CUR_SETPOS)
 		MDP_OUTP(MDP_BASE + 0x9004c, (img->dy << 16) | img->dx);
 
@@ -258,7 +139,6 @@ int mdp_hw_cursor_update(struct fb_info *info, struct fb_cursor *cursor)
 		MDP_OUTP(MDP_BASE + 0x90060,
 			 inp32(MDP_BASE + 0x90060) & (~0x1));
 	}
-	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
 
 	return 0;
 }

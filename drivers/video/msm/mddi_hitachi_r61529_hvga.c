@@ -16,16 +16,8 @@
 #include <linux/fb.h>
 #include <linux/delay.h>
 #include <linux/mutex.h>
-#include <generated/autoconf.h>
+#include <linux/autoconf.h>
 #include <linux/mddi_hitachi_r61529_hvga.h>
-
-#if defined(CONFIG_MACH_SEMC_SATSUMA) || defined(CONFIG_MACH_SEMC_SMULTRON)
-	#define REFRESH_RATE 6700
-#elif defined(CONFIG_MACH_SEMC_MANGO)
-	#define REFRESH_RATE 6200
-#else
-	#define REFRESH_RATE 6500
-#endif
 
 /* Internal version number */
 #define MDDI_DRIVER_VERSION 0x0004
@@ -83,18 +75,18 @@ struct hitachi_record {
 };
 
 #define DBC_CONTROL_SIZE  20
-/* maximum 30% setting*/
+/* 10% average setting*/
 static u32 dbc_control_on_data[DBC_CONTROL_SIZE] = {
-		0x00000001, 0x00000009, 0x00000009, 0x000000FF, 0X000000FF,
-		0x000000E1, 0x000000E1, 0x0000000C, 0x00000018, 0X00000010,
+		0x00000001, 0x00000003, 0x00000003, 0x000000FF, 0X000000FF,
+		0x000000ED, 0x000000ED, 0x00000002, 0x00000018, 0X00000010,
 		0x00000010, 0x00000037, 0x0000005A, 0x00000087, 0X000000BE,
 		0x000000FF, 0x00000000, 0x00000000, 0x00000000, 0X00000000};
 
 static u32 dbc_control_off_data[DBC_CONTROL_SIZE] = {
-		0x00000000, 0x00000006, 0x00000006, 0x000000FF, 0X000000FF,
-		0x000000ED, 0x000000ED, 0x0000000C, 0x00000018, 0X00000010,
-		0x00000010, 0x00000037, 0x0000005A, 0x00000087, 0X000000BE,
-		0x000000FF, 0x00000000, 0x00000000, 0x00000000, 0X00000000};
+		0x00000000, 0x00000002, 0x00000002, 0x000000FF, 0X000000FF,
+		0x000000EB, 0x000000EB, 0x00000004, 0x0000001F, 0X00000090,
+		0x00000090, 0x0000001F, 0x0000003D, 0x0000006B, 0X000000AA,
+		0x00000000, 0x00000000, 0x00000000, 0x00000000, 0X00000000};
 
 #ifdef MDDI_HITACHI_DISPLAY_INITIAL
 #define GAMMA_SETTING_SIZE 6
@@ -117,7 +109,7 @@ static void hitachi_lcd_dbc_on(struct hitachi_record *rd)
 				DBC_CONTROL_SIZE, TRUE, NULL, MDDI_HOST_PRIM);
 
 		/* Backlight control2 set */
-		mddi_host_register_write16(0xB9, 0x00000000, 0x000000F2,
+		mddi_host_register_write16(0xB9, 0x00000000, 0x000000FF,
 				0x00000001, 0x00000008, 4,
 				TRUE, NULL, MDDI_HOST_PRIM);
 
@@ -188,8 +180,7 @@ static void hitachi_lcd_driver_init(struct platform_device *pdev)
 			DBC_CONTROL_SIZE, TRUE, NULL, MDDI_HOST_PRIM);
 
 		/* Backlight control2 set */
-		mddi_host_register_write16(0xB9, 0x00000000, 0x000000F2,
-			0x00000001, 0x00000008, 4,
+		mddi_host_register_write16(0xB9, 0x0802FF00, 0, 0, 0, 1,
 			TRUE, NULL, MDDI_HOST_PRIM);
 
 		/* Display Timing Setting for Normal Mode*/
@@ -582,7 +573,7 @@ static int mddi_hitachi_lcd_probe(struct platform_device *pdev)
 		rd->pdata->panel_data->panel_info.mddi.vdopkt =
 						MDDI_DEFAULT_PRIM_PIX_ATTR;
 		rd->pdata->panel_data->panel_info.lcd.vsync_enable = TRUE;
-		rd->pdata->panel_data->panel_info.lcd.refx100 = REFRESH_RATE;
+		rd->pdata->panel_data->panel_info.lcd.refx100 = 6500;
 		rd->pdata->panel_data->panel_info.lcd.v_back_porch = 8;
 		rd->pdata->panel_data->panel_info.lcd.v_front_porch = 8;
 		rd->pdata->panel_data->panel_info.lcd.v_pulse_width = 0;

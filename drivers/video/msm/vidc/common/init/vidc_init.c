@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2012, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2010, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -8,6 +8,11 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA.
  *
  */
 
@@ -27,13 +32,12 @@
 #include <linux/android_pmem.h>
 #include <linux/clk.h>
 #include <linux/delay.h>
-#include <linux/debugfs.h>
+#include <mach/internal_power_rail.h>
 #include <mach/clk.h>
-#include <linux/pm_runtime.h>
-#include <mach/msm_subsystem_map.h>
-#include <media/msm/vcd_api.h>
-#include <media/msm/vidc_init.h>
+
+#include "vcd_api.h"
 #include "vidc_init_internal.h"
+#include "vidc_init.h"
 #include "vcd_res_tracker_api.h"
 
 #if DEBUG
@@ -49,13 +53,12 @@
 static struct vidc_dev *vidc_device_p;
 static dev_t vidc_dev_num;
 static struct class *vidc_class;
-static unsigned int vidc_mmu_subsystem[] = {MSM_SUBSYSTEM_VIDEO};
 
 static const struct file_operations vidc_fops = {
 	.owner = THIS_MODULE,
 	.open = NULL,
 	.release = NULL,
-	.unlocked_ioctl = NULL,
+	.ioctl = NULL,
 };
 
 struct workqueue_struct *vidc_wq;
@@ -63,33 +66,11 @@ struct workqueue_struct *vidc_timer_wq;
 static irqreturn_t vidc_isr(int irq, void *dev);
 static spinlock_t vidc_spin_lock;
 
-u32 vidc_msg_timing, vidc_msg_pmem;
-
-#ifdef VIDC_ENABLE_DBGFS
-struct dentry *vidc_debugfs_root;
-
-struct dentry *vidc_get_debugfs_root(void)
-{
-	if (vidc_debugfs_root == NULL)
-		vidc_debugfs_root = debugfs_create_dir("vidc", NULL);
-	return vidc_debugfs_root;
-}
-
-void vidc_debugfs_file_create(struct dentry *root, const char *name,
-				u32 *var)
-{
-	struct dentry *vidc_debugfs_file =
-		debugfs_create_u32(name, S_IRUGO | S_IWUSR, root, var);
-	if (!vidc_debugfs_file)
-		ERR("%s(): Error creating/opening file %s\n", __func__, name);
-}
-#endif
-
 static void vidc_timer_fn(unsigned long data)
 {
 	unsigned long flag;
 	struct vidc_timer *hw_timer = NULL;
-	ERR("%s() Timer expired\n", __func__);
+	DBG("%s() Timer expired\n", __func__);
 	spin_lock_irqsave(&vidc_spin_lock, flag);
 	hw_timer = (struct vidc_timer *)data;
 	list_add_tail(&hw_timer->list, &vidc_device_p->vidc_timer_queue);
@@ -104,7 +85,7 @@ static void vidc_timer_handler(struct work_struct *work)
 	u32 islist_empty = 0;
 	struct vidc_timer *hw_timer = NULL;
 
-	ERR("%s() Timer expired\n", __func__);
+	DBG("%s() Timer expired\n", __func__);
 	do {
 		spin_lock_irqsave(&vidc_spin_lock, flag);
 		islist_empty = list_empty(&vidc_device_p->vidc_timer_queue);
@@ -131,7 +112,7 @@ static void vidc_work_handler(struct work_struct *work)
 
 static DECLARE_WORK(vidc_work, vidc_work_handler);
 
-static int __devinit vidc_720p_probe(struct platform_device *pdev)
+static int __init vidc_720p_probe(struct platform_device *pdev)
 {
 	struct resource *resource;
 	DBG("Enter %s()\n", __func__);
@@ -169,8 +150,6 @@ static int __devinit vidc_720p_probe(struct platform_device *pdev)
 		ERR("%s: create workque failed\n", __func__);
 		return -ENOMEM;
 	}
-	pm_runtime_set_active(&pdev->dev);
-	pm_runtime_enable(&pdev->dev);
 	return 0;
 }
 
@@ -180,34 +159,15 @@ static int __devexit vidc_720p_remove(struct platform_device *pdev)
 		ERR("Invalid plaform device ID = %d\n", pdev->id);
 		return -EINVAL;
 	}
-	pm_runtime_disable(&pdev->dev);
-
 	return 0;
 }
 
-static int vidc_runtime_suspend(struct device *dev)
-{
-	dev_dbg(dev, "pm_runtime: suspending...\n");
-	return 0;
-}
-
-static int vidc_runtime_resume(struct device *dev)
-{
-	dev_dbg(dev, "pm_runtime: resuming...\n");
-	return 0;
-}
-
-static const struct dev_pm_ops vidc_dev_pm_ops = {
-	.runtime_suspend = vidc_runtime_suspend,
-	.runtime_resume = vidc_runtime_resume,
-};
 
 static struct platform_driver msm_vidc_720p_platform_driver = {
 	.probe = vidc_720p_probe,
 	.remove = vidc_720p_remove,
 	.driver = {
-		.name = "msm_vidc",
-		.pm   = &vidc_dev_pm_ops,
+				.name = "msm_vidc",
 	},
 };
 
@@ -228,9 +188,6 @@ static int __init vidc_init(void)
 {
 	int rc = 0;
 	struct device *class_devp;
-#ifdef VIDC_ENABLE_DBGFS
-	struct dentry *root = NULL;
-#endif
 
 	vidc_device_p = kzalloc(sizeof(struct vidc_dev), GFP_KERNEL);
 	if (!vidc_device_p) {
@@ -285,40 +242,29 @@ static int __init vidc_init(void)
 
 	if (unlikely(rc)) {
 		ERR("%s() :request_irq failed\n", __func__);
-		goto error_vidc_request_irq;
+		goto error_vidc_platfom_register;
 	}
-	res_trk_init(vidc_device_p->device, vidc_device_p->irq);
+
 	vidc_timer_wq = create_singlethread_workqueue("vidc_timer_wq");
 	if (!vidc_timer_wq) {
 		ERR("%s: create workque failed\n", __func__);
 		rc = -ENOMEM;
-		goto error_vidc_create_workqueue;
+		goto error_vidc_platfom_register;
 	}
+
 	DBG("Disabling IRQ in %s()\n", __func__);
 	disable_irq_nosync(vidc_device_p->irq);
 	INIT_WORK(&vidc_device_p->vidc_timer_worker,
 			  vidc_timer_handler);
 	spin_lock_init(&vidc_spin_lock);
 	INIT_LIST_HEAD(&vidc_device_p->vidc_timer_queue);
-
+	res_trk_init(vidc_device_p->device, vidc_device_p->irq);
 	vidc_device_p->ref_count = 0;
 	vidc_device_p->firmware_refcount = 0;
 	vidc_device_p->get_firmware = 0;
-#ifdef VIDC_ENABLE_DBGFS
-	root = vidc_get_debugfs_root();
-	if (root) {
-		vidc_debugfs_file_create(root, "vidc_msg_timing",
-				(u32 *) &vidc_msg_timing);
-		vidc_debugfs_file_create(root, "vidc_msg_pmem",
-				(u32 *) &vidc_msg_pmem);
-	}
-#endif
+
 	return 0;
 
-error_vidc_create_workqueue:
-	free_irq(vidc_device_p->irq, vidc_device_p->device);
-error_vidc_request_irq:
-	platform_driver_unregister(&msm_vidc_720p_platform_driver);
 error_vidc_platfom_register:
 	cdev_del(&(vidc_device_p->cdev));
 error_vidc_cdev_add:
@@ -343,129 +289,30 @@ int vidc_load_firmware(void)
 {
 	u32 status = true;
 
-	if (!res_trk_check_for_sec_session()) {
-		mutex_lock(&vidc_device_p->lock);
-		if (!vidc_device_p->get_firmware) {
-			status = res_trk_download_firmware();
-			if (!status)
-				goto error;
-			vidc_device_p->get_firmware = 1;
-		}
-		vidc_device_p->firmware_refcount++;
-error:
-		mutex_unlock(&vidc_device_p->lock);
+	mutex_lock(&vidc_device_p->lock);
+	if (!vidc_device_p->get_firmware) {
+		status = res_trk_download_firmware();
+		if (!status)
+			goto error;
+		vidc_device_p->get_firmware = 1;
 	}
+	vidc_device_p->firmware_refcount++;
+error:
+	mutex_unlock(&vidc_device_p->lock);
 	return status;
 }
 EXPORT_SYMBOL(vidc_load_firmware);
 
 void vidc_release_firmware(void)
 {
-	if (!res_trk_check_for_sec_session()) {
-		mutex_lock(&vidc_device_p->lock);
-		if (vidc_device_p->firmware_refcount > 0)
-			vidc_device_p->firmware_refcount--;
-		else
-			vidc_device_p->firmware_refcount = 0;
-		mutex_unlock(&vidc_device_p->lock);
-	}
+	mutex_lock(&vidc_device_p->lock);
+	if (vidc_device_p->firmware_refcount > 0)
+		vidc_device_p->firmware_refcount--;
+	else
+		vidc_device_p->firmware_refcount = 0;
+	mutex_unlock(&vidc_device_p->lock);
 }
 EXPORT_SYMBOL(vidc_release_firmware);
-
-u32 vidc_get_fd_info(struct video_client_ctx *client_ctx,
-		enum buffer_dir buffer, int pmem_fd,
-		unsigned long kvaddr, int index,
-		struct ion_handle **buff_handle)
-{
-	struct buf_addr_table *buf_addr_table;
-	u32 rc = 0;
-	if (!client_ctx)
-		return false;
-	if (buffer == BUFFER_TYPE_INPUT)
-		buf_addr_table = client_ctx->input_buf_addr_table;
-	else
-		buf_addr_table = client_ctx->output_buf_addr_table;
-	if (buf_addr_table[index].pmem_fd == pmem_fd) {
-		if (buf_addr_table[index].kernel_vaddr == kvaddr)
-			rc = buf_addr_table[index].buff_ion_flag;
-			*buff_handle = buf_addr_table[index].buff_ion_handle;
-	}
-	return rc;
-}
-EXPORT_SYMBOL(vidc_get_fd_info);
-
-void vidc_cleanup_addr_table(struct video_client_ctx *client_ctx,
-				enum buffer_dir buffer)
-{
-	u32 *num_of_buffers = NULL;
-	u32 i = 0;
-	struct buf_addr_table *buf_addr_table;
-	if (buffer == BUFFER_TYPE_INPUT) {
-		buf_addr_table = client_ctx->input_buf_addr_table;
-		num_of_buffers = &client_ctx->num_of_input_buffers;
-		DBG("%s(): buffer = INPUT\n", __func__);
-
-	} else {
-		buf_addr_table = client_ctx->output_buf_addr_table;
-		num_of_buffers = &client_ctx->num_of_output_buffers;
-		DBG("%s(): buffer = OUTPUT\n", __func__);
-	}
-
-	if (!*num_of_buffers)
-		goto bail_out_cleanup;
-	if (!client_ctx->user_ion_client)
-		goto bail_out_cleanup;
-	for (i = 0; i < *num_of_buffers; ++i) {
-		if (buf_addr_table[i].client_data) {
-			msm_subsystem_unmap_buffer(
-			(struct msm_mapped_buffer *)
-			buf_addr_table[i].client_data);
-			buf_addr_table[i].client_data = NULL;
-		}
-		if (!IS_ERR_OR_NULL(buf_addr_table[i].buff_ion_handle)) {
-			if (!IS_ERR_OR_NULL(client_ctx->user_ion_client)) {
-				ion_unmap_kernel(client_ctx->user_ion_client,
-						buf_addr_table[i].
-						buff_ion_handle);
-				if (!res_trk_check_for_sec_session()) {
-					ion_unmap_iommu(
-						client_ctx->user_ion_client,
-						buf_addr_table[i].
-						buff_ion_handle,
-						VIDEO_DOMAIN,
-						VIDEO_MAIN_POOL);
-				}
-				ion_free(client_ctx->user_ion_client,
-						buf_addr_table[i].
-						buff_ion_handle);
-				buf_addr_table[i].buff_ion_handle = NULL;
-			}
-		}
-	}
-	if (client_ctx->vcd_h264_mv_buffer.client_data) {
-		msm_subsystem_unmap_buffer((struct msm_mapped_buffer *)
-		client_ctx->vcd_h264_mv_buffer.client_data);
-		client_ctx->vcd_h264_mv_buffer.client_data = NULL;
-	}
-	if (!IS_ERR_OR_NULL(client_ctx->h264_mv_ion_handle)) {
-		if (!IS_ERR_OR_NULL(client_ctx->user_ion_client)) {
-			ion_unmap_kernel(client_ctx->user_ion_client,
-					client_ctx->h264_mv_ion_handle);
-			if (!res_trk_check_for_sec_session()) {
-				ion_unmap_iommu(client_ctx->user_ion_client,
-					client_ctx->h264_mv_ion_handle,
-					VIDEO_DOMAIN,
-					VIDEO_MAIN_POOL);
-			}
-			ion_free(client_ctx->user_ion_client,
-					client_ctx->h264_mv_ion_handle);
-			client_ctx->h264_mv_ion_handle = NULL;
-		}
-	}
-bail_out_cleanup:
-	return;
-}
-EXPORT_SYMBOL(vidc_cleanup_addr_table);
 
 u32 vidc_lookup_addr_table(struct video_client_ctx *client_ctx,
 	enum buffer_dir buffer,
@@ -482,7 +329,7 @@ u32 vidc_lookup_addr_table(struct video_client_ctx *client_ctx,
 
 	if (!client_ctx)
 		return false;
-	mutex_lock(&client_ctx->enrty_queue_lock);
+
 	if (buffer == BUFFER_TYPE_INPUT) {
 		buf_addr_table = client_ctx->input_buf_addr_table;
 		num_of_buffers = client_ctx->num_of_input_buffers;
@@ -517,7 +364,7 @@ u32 vidc_lookup_addr_table(struct video_client_ctx *client_ctx,
 	}
 
 	if (found) {
-		*phy_addr = buf_addr_table[i].dev_addr;
+		*phy_addr = buf_addr_table[i].phy_addr;
 		*pmem_fd = buf_addr_table[i].pmem_fd;
 		*file = buf_addr_table[i].file;
 		*buffer_index = i;
@@ -532,7 +379,6 @@ u32 vidc_lookup_addr_table(struct video_client_ctx *client_ctx,
 			" pmem_fd = %d, struct *file	= %p "
 			"buffer_index = %d\n", *user_vaddr, *phy_addr,
 			*pmem_fd, *file, *buffer_index);
-		mutex_unlock(&client_ctx->enrty_queue_lock);
 		return true;
 	} else {
 		if (search_with_user_vaddr)
@@ -542,7 +388,6 @@ u32 vidc_lookup_addr_table(struct video_client_ctx *client_ctx,
 			DBG("%s() : client_ctx = %p kernel_virt_addr = 0x%08lx"
 			" Not Found.\n", __func__, client_ctx,
 			*kernel_vaddr);
-		mutex_unlock(&client_ctx->enrty_queue_lock);
 		return false;
 	}
 }
@@ -551,25 +396,17 @@ EXPORT_SYMBOL(vidc_lookup_addr_table);
 u32 vidc_insert_addr_table(struct video_client_ctx *client_ctx,
 	enum buffer_dir buffer, unsigned long user_vaddr,
 	unsigned long *kernel_vaddr, int pmem_fd,
-	unsigned long buffer_addr_offset, unsigned int max_num_buffers,
-	unsigned long length)
+	unsigned long buffer_addr_offset, unsigned int max_num_buffers)
 {
 	unsigned long len, phys_addr;
-	struct file *file = NULL;
+	struct file *file;
 	u32 *num_of_buffers = NULL;
-	u32 i, flags;
+	u32 i;
 	struct buf_addr_table *buf_addr_table;
-	struct msm_mapped_buffer *mapped_buffer = NULL;
-	struct ion_handle *buff_ion_handle = NULL;
-	unsigned long ionflag = 0;
-	unsigned long iova = 0;
-	int ret = 0;
-	unsigned long buffer_size  = 0;
-	size_t ion_len;
 
-	if (!client_ctx || !length)
+	if (!client_ctx)
 		return false;
-	mutex_lock(&client_ctx->enrty_queue_lock);
+
 	if (buffer == BUFFER_TYPE_INPUT) {
 		buf_addr_table = client_ctx->input_buf_addr_table;
 		num_of_buffers = &client_ctx->num_of_input_buffers;
@@ -581,13 +418,12 @@ u32 vidc_insert_addr_table(struct video_client_ctx *client_ctx,
 		num_of_buffers = &client_ctx->num_of_output_buffers;
 		DBG("%s(): buffer = OUTPUT #Buf = %d\n",
 			__func__, *num_of_buffers);
-		length = length * 2; /* workaround for iommu video h/w bug */
 	}
 
 	if (*num_of_buffers == max_num_buffers) {
 		ERR("%s(): Num of buffers reached max value : %d",
 			__func__, max_num_buffers);
-		goto bail_out_add;
+		return false;
 	}
 
 	i = 0;
@@ -598,91 +434,14 @@ u32 vidc_insert_addr_table(struct video_client_ctx *client_ctx,
 		DBG("%s() : client_ctx = %p."
 			" user_virt_addr = 0x%08lx already set",
 			__func__, client_ctx, user_vaddr);
-		goto bail_out_add;
+		return false;
 	} else {
-		if (!vcd_get_ion_status()) {
-			if (get_pmem_file(pmem_fd, &phys_addr,
-					kernel_vaddr, &len, &file)) {
-				ERR("%s(): get_pmem_file failed\n", __func__);
-				goto bail_out_add;
-			}
-			put_pmem_file(file);
-			flags = (buffer == BUFFER_TYPE_INPUT)
-			? MSM_SUBSYSTEM_MAP_IOVA :
-			MSM_SUBSYSTEM_MAP_IOVA|MSM_SUBSYSTEM_ALIGN_IOVA_8K;
-			mapped_buffer = msm_subsystem_map_buffer(phys_addr,
-			length, flags, vidc_mmu_subsystem,
-			sizeof(vidc_mmu_subsystem)/sizeof(unsigned int));
-			if (IS_ERR(mapped_buffer)) {
-				pr_err("buffer map failed");
-				goto bail_out_add;
-			}
-			buf_addr_table[*num_of_buffers].client_data = (void *)
-				mapped_buffer;
-			buf_addr_table[*num_of_buffers].dev_addr =
-				mapped_buffer->iova[0];
-		} else {
-			buff_ion_handle = ion_import_fd(
-				client_ctx->user_ion_client, pmem_fd);
-			if (IS_ERR_OR_NULL(buff_ion_handle)) {
-				ERR("%s(): get_ION_handle failed\n",
-				 __func__);
-				goto bail_out_add;
-			}
-			if (ion_handle_get_flags(client_ctx->user_ion_client,
-						buff_ion_handle,
-						&ionflag)) {
-				ERR("%s():ION flags fail\n",
-				 __func__);
-				goto bail_out_add;
-			}
-			*kernel_vaddr = (unsigned long)
-				ion_map_kernel(
-				client_ctx->user_ion_client,
-				buff_ion_handle,
-				ionflag);
-			if (!(*kernel_vaddr)) {
-				ERR("%s():ION virtual addr fail\n",
-				 __func__);
-				*kernel_vaddr = (unsigned long)NULL;
-				goto ion_free_error;
-			}
-			if (res_trk_check_for_sec_session()) {
-				if (ion_phys(client_ctx->user_ion_client,
-					buff_ion_handle,
-					&phys_addr, &ion_len)) {
-					ERR("%s():ION physical addr fail\n",
-					__func__);
-					goto ion_map_error;
-				}
-				len = (unsigned long) ion_len;
-				buf_addr_table[*num_of_buffers].client_data =
-					 NULL;
-				buf_addr_table[*num_of_buffers].dev_addr =
-					 phys_addr;
-			} else {
-				ret = ion_map_iommu(client_ctx->user_ion_client,
-						buff_ion_handle,
-						VIDEO_DOMAIN,
-						VIDEO_MAIN_POOL,
-						SZ_8K,
-						length,
-						(unsigned long *) &iova,
-						(unsigned long *) &buffer_size,
-						UNCACHED,
-						ION_IOMMU_UNMAP_DELAYED);
-				if (ret) {
-					ERR("%s():ION iommu map fail\n",
-					 __func__);
-					goto ion_map_error;
-				}
-				phys_addr = iova;
-				buf_addr_table[*num_of_buffers].client_data =
-						 NULL;
-				buf_addr_table[*num_of_buffers].dev_addr =
-						 iova;
-			}
+		if (get_pmem_file(pmem_fd, &phys_addr,
+				kernel_vaddr, &len, &file)) {
+			ERR("%s(): get_pmem_file failed\n", __func__);
+			return false;
 		}
+		put_pmem_file(file);
 		phys_addr += buffer_addr_offset;
 		(*kernel_vaddr) += buffer_addr_offset;
 		buf_addr_table[*num_of_buffers].user_vaddr = user_vaddr;
@@ -690,100 +449,14 @@ u32 vidc_insert_addr_table(struct video_client_ctx *client_ctx,
 		buf_addr_table[*num_of_buffers].pmem_fd = pmem_fd;
 		buf_addr_table[*num_of_buffers].file = file;
 		buf_addr_table[*num_of_buffers].phy_addr = phys_addr;
-		buf_addr_table[*num_of_buffers].buff_ion_handle =
-						buff_ion_handle;
-		buf_addr_table[*num_of_buffers].buff_ion_flag =
-						ionflag;
 		*num_of_buffers = *num_of_buffers + 1;
 		DBG("%s() : client_ctx = %p, user_virt_addr = 0x%08lx, "
-			"kernel_vaddr = 0x%08lx phys_addr=%lu inserted!",
-			__func__, client_ctx, user_vaddr, *kernel_vaddr,
-			phys_addr);
-	}
-	mutex_unlock(&client_ctx->enrty_queue_lock);
-	return true;
-ion_map_error:
-	if (*kernel_vaddr && buff_ion_handle)
-		ion_unmap_kernel(client_ctx->user_ion_client, buff_ion_handle);
-ion_free_error:
-	if (!IS_ERR_OR_NULL(buff_ion_handle))
-		ion_free(client_ctx->user_ion_client, buff_ion_handle);
-bail_out_add:
-	mutex_unlock(&client_ctx->enrty_queue_lock);
-	return false;
-}
-EXPORT_SYMBOL(vidc_insert_addr_table);
-
-/*
- * Similar to vidc_insert_addr_table except intended for in-kernel
- * use where buffers have already been alloced and mapped properly
- */
-u32 vidc_insert_addr_table_kernel(struct video_client_ctx *client_ctx,
-	enum buffer_dir buffer, unsigned long user_vaddr,
-	unsigned long kernel_vaddr, unsigned long phys_addr,
-	unsigned int max_num_buffers,
-	unsigned long length)
-{
-	u32 *num_of_buffers = NULL;
-	u32 i;
-	struct buf_addr_table *buf_addr_table;
-	struct msm_mapped_buffer *mapped_buffer = NULL;
-
-	if (!client_ctx || !length || !kernel_vaddr || !phys_addr)
-		return false;
-	mutex_lock(&client_ctx->enrty_queue_lock);
-	if (buffer == BUFFER_TYPE_INPUT) {
-		buf_addr_table = client_ctx->input_buf_addr_table;
-		num_of_buffers = &client_ctx->num_of_input_buffers;
-		DBG("%s(): buffer = INPUT #Buf = %d\n",
-			__func__, *num_of_buffers);
-
-	} else {
-		buf_addr_table = client_ctx->output_buf_addr_table;
-		num_of_buffers = &client_ctx->num_of_output_buffers;
-		DBG("%s(): buffer = OUTPUT #Buf = %d\n",
-			__func__, *num_of_buffers);
-	}
-
-	if (*num_of_buffers == max_num_buffers) {
-		ERR("%s(): Num of buffers reached max value : %d",
-			__func__, max_num_buffers);
-		goto bail_out_add;
-	}
-
-	i = 0;
-	while (i < *num_of_buffers &&
-		user_vaddr != buf_addr_table[i].user_vaddr) {
-		i++;
-	}
-	if (i < *num_of_buffers) {
-		DBG("%s() : client_ctx = %p."
-			" user_virt_addr = 0x%08lx already set",
-			__func__, client_ctx, user_vaddr);
-		goto bail_out_add;
-	} else {
-		mapped_buffer = NULL;
-		buf_addr_table[*num_of_buffers].client_data = (void *)
-			mapped_buffer;
-		buf_addr_table[*num_of_buffers].dev_addr = phys_addr;
-		buf_addr_table[*num_of_buffers].user_vaddr = user_vaddr;
-		buf_addr_table[*num_of_buffers].kernel_vaddr = kernel_vaddr;
-		buf_addr_table[*num_of_buffers].pmem_fd = -1;
-		buf_addr_table[*num_of_buffers].file = NULL;
-		buf_addr_table[*num_of_buffers].phy_addr = phys_addr;
-		buf_addr_table[*num_of_buffers].buff_ion_handle = NULL;
-		*num_of_buffers = *num_of_buffers + 1;
-		DBG("%s() : client_ctx = %p, user_virt_addr = 0x%08lx, "
-			"kernel_vaddr = 0x%08lx inserted!", __func__,
+			"kernel_vaddr = 0x%08lx inserted!",	__func__,
 			client_ctx, user_vaddr, *kernel_vaddr);
 	}
-	mutex_unlock(&client_ctx->enrty_queue_lock);
 	return true;
-bail_out_add:
-	mutex_unlock(&client_ctx->enrty_queue_lock);
-	return false;
 }
-EXPORT_SYMBOL(vidc_insert_addr_table_kernel);
+EXPORT_SYMBOL(vidc_insert_addr_table);
 
 u32 vidc_delete_addr_table(struct video_client_ctx *client_ctx,
 	enum buffer_dir buffer,
@@ -796,53 +469,33 @@ u32 vidc_delete_addr_table(struct video_client_ctx *client_ctx,
 
 	if (!client_ctx)
 		return false;
-	mutex_lock(&client_ctx->enrty_queue_lock);
+
 	if (buffer == BUFFER_TYPE_INPUT) {
 		buf_addr_table = client_ctx->input_buf_addr_table;
 		num_of_buffers = &client_ctx->num_of_input_buffers;
+		DBG("%s(): buffer = INPUT\n", __func__);
 
 	} else {
 		buf_addr_table = client_ctx->output_buf_addr_table;
 		num_of_buffers = &client_ctx->num_of_output_buffers;
+		DBG("%s(): buffer = OUTPUT\n", __func__);
 	}
 
 	if (!*num_of_buffers)
-		goto bail_out_del;
+		return false;
 
 	i = 0;
 	while (i < *num_of_buffers &&
 		user_vaddr != buf_addr_table[i].user_vaddr)
 		i++;
 	if (i == *num_of_buffers) {
-		pr_err("%s() : client_ctx = %p."
+		DBG("%s() : client_ctx = %p."
 			" user_virt_addr = 0x%08lx NOT found",
 			__func__, client_ctx, user_vaddr);
-		goto bail_out_del;
-	}
-	if (buf_addr_table[i].client_data) {
-		msm_subsystem_unmap_buffer(
-		(struct msm_mapped_buffer *)buf_addr_table[i].client_data);
-		buf_addr_table[i].client_data = NULL;
+		return false;
 	}
 	*kernel_vaddr = buf_addr_table[i].kernel_vaddr;
-	if (buf_addr_table[i].buff_ion_handle) {
-		ion_unmap_kernel(client_ctx->user_ion_client,
-				buf_addr_table[i].buff_ion_handle);
-		if (!res_trk_check_for_sec_session()) {
-			ion_unmap_iommu(client_ctx->user_ion_client,
-				buf_addr_table[i].buff_ion_handle,
-				VIDEO_DOMAIN,
-				VIDEO_MAIN_POOL);
-		}
-		ion_free(client_ctx->user_ion_client,
-				buf_addr_table[i].buff_ion_handle);
-		buf_addr_table[i].buff_ion_handle = NULL;
-	}
 	if (i < (*num_of_buffers - 1)) {
-		buf_addr_table[i].client_data =
-			buf_addr_table[*num_of_buffers - 1].client_data;
-		buf_addr_table[i].dev_addr =
-			buf_addr_table[*num_of_buffers - 1].dev_addr;
 		buf_addr_table[i].user_vaddr =
 			buf_addr_table[*num_of_buffers - 1].user_vaddr;
 		buf_addr_table[i].kernel_vaddr =
@@ -853,18 +506,12 @@ u32 vidc_delete_addr_table(struct video_client_ctx *client_ctx,
 			buf_addr_table[*num_of_buffers - 1].pmem_fd;
 		buf_addr_table[i].file =
 			buf_addr_table[*num_of_buffers - 1].file;
-		buf_addr_table[i].buff_ion_handle =
-			buf_addr_table[*num_of_buffers - 1].buff_ion_handle;
 	}
 	*num_of_buffers = *num_of_buffers - 1;
 	DBG("%s() : client_ctx = %p."
 		" user_virt_addr = 0x%08lx is found and deleted",
 		__func__, client_ctx, user_vaddr);
-	mutex_unlock(&client_ctx->enrty_queue_lock);
 	return true;
-bail_out_del:
-	mutex_unlock(&client_ctx->enrty_queue_lock);
-	return false;
 }
 EXPORT_SYMBOL(vidc_delete_addr_table);
 

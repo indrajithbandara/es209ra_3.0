@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2012, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2010, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -9,9 +9,14 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA.
+ *
  */
 
-#include <media/msm/vidc_type.h>
+#include "vidc_type.h"
 #include "vidc.h"
 #include "vcd_ddl_utils.h"
 #include "vcd_ddl_metadata.h"
@@ -129,8 +134,6 @@ static u32 ddl_channel_set_callback(struct ddl_context *ddl_context)
 	ddl_move_client_state(ddl, DDL_CLIENT_WAIT_FOR_INITCODEC);
 
 	if (ddl->decoding) {
-		if (vidc_msg_timing)
-			ddl_calc_core_proc_time(__func__, DEC_OP_TIME);
 		if (ddl->codec_data.decoder.header_in_start) {
 			ddl_decode_init_codec(ddl);
 		} else {
@@ -198,8 +201,6 @@ static u32 ddl_header_done_callback(struct ddl_context *ddl_context)
 		ddl_client_fatal_cb(ddl_context);
 		return true;
 	}
-	if (vidc_msg_timing)
-		ddl_calc_core_proc_time(__func__, DEC_OP_TIME);
 	ddl_move_command_state(ddl_context, DDL_CMD_INVALID);
 	ddl_move_client_state(ddl, DDL_CLIENT_WAIT_FOR_DPB);
 	VIDC_LOG_STRING("HEADER_DONE");
@@ -290,14 +291,13 @@ static u32 ddl_header_done_callback(struct ddl_context *ddl_context)
 			decoder->client_output_buf_req.actual_count
 			&& decoder->progressive_only)
 			need_reconfig = false;
-		if ((input_vcd_frm->data_len <= seq_hdr_info.dec_frm_size ||
+		if ((input_vcd_frm->data_len == seq_hdr_info.dec_frm_size ||
 			 (input_vcd_frm->flags & VCD_FRAME_FLAG_CODECCONFIG)) &&
 			(!need_reconfig ||
 			 !(input_vcd_frm->flags & VCD_FRAME_FLAG_EOS))) {
 			input_vcd_frm->flags |=
 				VCD_FRAME_FLAG_CODECCONFIG;
 			seq_hdr_only_frame = true;
-			input_vcd_frm->data_len = 0;
 			ddl->input_frame.frm_trans_end = !need_reconfig;
 			ddl_context->ddl_callback(
 				VCD_EVT_RESP_INPUT_DONE,
@@ -350,10 +350,6 @@ static u32 ddl_dpb_buffers_set_done_callback(struct ddl_context
 		ddl_client_fatal_cb(ddl_context);
 		return true;
 	}
-	if (vidc_msg_timing) {
-		ddl_calc_core_proc_time(__func__, DEC_OP_TIME);
-		ddl_reset_core_time_variables(DEC_OP_TIME);
-	}
 	VIDC_LOG_STRING("INTR_DPBDONE");
 	ddl_move_client_state(ddl, DDL_CLIENT_WAIT_FOR_FRAME);
 	ddl->codec_data.decoder.dec_disp_info.img_size_x = 0;
@@ -398,9 +394,9 @@ static void ddl_encoder_frame_run_callback(struct ddl_context
 		&(ddl->input_frame), sizeof(struct ddl_frame_data_tag),
 		(u32 *) ddl, ddl_context->client_data);
 
-	if (vidc_msg_timing)
-		ddl_calc_core_proc_time(__func__, ENC_OP_TIME);
-
+#ifdef CORE_TIMING_INFO
+	ddl_calc_core_time(1);
+#endif
 	/* check the presence of EOS */
    eos_present =
 	((VCD_FRAME_FLAG_EOS & ddl->input_frame.vcd_frm.flags));
@@ -717,8 +713,6 @@ static void ddl_decoder_input_done_callback(
 	input_vcd_frm->data_len -= dec_disp_info->input_bytes_consumed;
 
 	ddl->input_frame.frm_trans_end = frame_transact_end;
-	if (vidc_msg_timing)
-		ddl_calc_core_proc_time(__func__, DEC_IP_TIME);
 	ddl->ddl_context->ddl_callback(
 		VCD_EVT_RESP_INPUT_DONE,
 		VCD_S_SUCCESS,
@@ -805,8 +799,9 @@ static u32 ddl_decoder_output_done_callback(
 	ddl_process_decoder_metadata(ddl);
 	output_frame->frm_trans_end = frame_transact_end;
 
-	if (vidc_msg_timing)
-		ddl_calc_core_proc_time(__func__, DEC_OP_TIME);
+#ifdef CORE_TIMING_INFO
+	ddl_calc_core_time(0);
+#endif
 
 	ddl->ddl_context->ddl_callback(
 		VCD_EVT_RESP_OUTPUT_DONE,
@@ -845,12 +840,6 @@ static u32 ddl_get_frame
 		{
 			frame->frame = VCD_FRAME_NOTCODED;
 			frame->data_len = 0;
-			break;
-		}
-	case VIDC_720P_IDRFRAME:
-		{
-			frame->flags |= VCD_FRAME_FLAG_SYNCFRAME;
-			frame->frame = VCD_FRAME_IDR;
 			break;
 		}
 	default:
@@ -986,61 +975,49 @@ static void ddl_get_vc1_dec_level(
 		switch (level) {
 		case VIDC_720P_VC1_LEVEL0:
 			{
-				*codec_level = VCD_LEVEL_VC1_A_0;
+				*codec_level = VCD_LEVEL_VC1_0;
 				break;
 			}
 		case VIDC_720P_VC1_LEVEL1:
 			{
-				*codec_level = VCD_LEVEL_VC1_A_1;
+				*codec_level = VCD_LEVEL_VC1_1;
 				break;
 			}
 		case VIDC_720P_VC1_LEVEL2:
 			{
-				*codec_level = VCD_LEVEL_VC1_A_2;
+				*codec_level = VCD_LEVEL_VC1_2;
 				break;
 			}
 		case VIDC_720P_VC1_LEVEL3:
 			{
-				*codec_level = VCD_LEVEL_VC1_A_3;
+				*codec_level = VCD_LEVEL_VC1_3;
 				break;
 			}
 		case VIDC_720P_VC1_LEVEL4:
 			{
-				*codec_level = VCD_LEVEL_VC1_A_4;
+				*codec_level = VCD_LEVEL_VC1_4;
 				break;
 			}
 		}
 		return;
-	} else if (vc1_profile == VCD_PROFILE_VC1_MAIN) {
-		switch (level) {
-		case VIDC_720P_VC1_LEVEL_LOW:
-			{
-				*codec_level = VCD_LEVEL_VC1_M_LOW;
-				break;
-			}
-		case VIDC_720P_VC1_LEVEL_MED:
-			{
-				*codec_level = VCD_LEVEL_VC1_M_MEDIUM;
-				break;
-			}
-		case VIDC_720P_VC1_LEVEL_HIGH:
-			{
-				*codec_level = VCD_LEVEL_VC1_M_HIGH;
-				break;
-			}
+	}
+
+	/* now determine the Main and Simple profile level */
+	switch (level) {
+	case VIDC_720P_VC1_LEVEL_LOW:
+		{
+			*codec_level = VCD_LEVEL_VC1_LOW;
+			break;
 		}
-	} else if (vc1_profile == VCD_PROFILE_VC1_SIMPLE) {
-		switch (level) {
-		case VIDC_720P_VC1_LEVEL_LOW:
-			{
-				*codec_level = VCD_LEVEL_VC1_S_LOW;
-				break;
-			}
-		case VIDC_720P_VC1_LEVEL_MED:
-			{
-				*codec_level = VCD_LEVEL_VC1_S_MEDIUM;
-				break;
-			}
+	case VIDC_720P_VC1_LEVEL_MED:
+		{
+			*codec_level = VCD_LEVEL_VC1_MEDIUM;
+			break;
+		}
+	case VIDC_720P_VC1_LEVEL_HIGH:
+		{
+			*codec_level = VCD_LEVEL_VC1_HIGH;
+			break;
 		}
 	}
 }
