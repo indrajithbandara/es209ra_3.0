@@ -116,8 +116,8 @@
 
 #define MSM_SHARED_RAM_PHYS	0x00100000
 
-#define MSM_PMEM_SMI_BASE	0x02B00000
-#define MSM_PMEM_SMI_SIZE	0x01500000
+//#define MSM_PMEM_SMI_BASE	0x02B00000
+//#define MSM_PMEM_SMI_SIZE	0x01500000
 
 #define MSM_FB_BASE		0x02B00000
 
@@ -692,7 +692,7 @@ static int msm_fb_mddi_power_save(int on)
 	int flag_on = !!on;
 	int ret = 0;
 
-
+	local_irq_enable();
 	if (mddi_power_save_on == flag_on)
 		return ret;
 
@@ -710,6 +710,7 @@ static int msm_fb_mddi_power_save(int on)
 		printk(KERN_ERR "%s: pmic_lp_mode_control failed!\n", __func__);
 
 	return ret;
+	local_irq_disable();
 }
 
 static int msm_fb_mddi_sel_clk(u32 *clk_rate)
@@ -744,21 +745,21 @@ static void tmd_wvga_lcd_power_on(void)
 {
 	int rc = 0;
 
-	local_irq_disable();
+	local_irq_enable();
 
 	rc = vreg_enable(vreg_gp2);
 	if (rc) {
-		local_irq_enable();
+		local_irq_disable();
 		printk(KERN_ERR"%s:vreg_enable(gp2)err. rc=%d\n", __func__, rc);
 		return;
 	}
 	rc = vreg_enable(vreg_mmc);
 	if (rc) {
-		local_irq_enable();
+		local_irq_disable();
 		printk(KERN_ERR"%s:vreg_enable(mmc)err. rc=%d\n", __func__, rc);
 		return;
 	}
-	local_irq_enable();
+	local_irq_disable();
 
 	msleep(50);
 	gpio_set_value(NT35580_GPIO_XRST, 1);
@@ -774,10 +775,10 @@ static void tmd_wvga_lcd_power_off(void)
 	gpio_set_value(NT35580_GPIO_XRST, 0);
 	msleep(10);
 
-	local_irq_disable();
+	local_irq_enable();
 	vreg_disable(vreg_mmc);
 	vreg_disable(vreg_gp2);
-	local_irq_enable();
+	local_irq_disable();
 }
 
 static struct panel_data_ext tmd_wvga_panel_ext = {
@@ -1016,12 +1017,12 @@ static void __init bt_power_init(void)
 #define bt_power_init(x) do {} while (0)*/
 #endif
 
-struct kgsl_cpufreq_voter {
+/*struct kgsl_cpufreq_voter {
 	int idle;
 	struct msm_cpufreq_voter voter;
 };
 
-/*static int kgsl_cpufreq_vote(struct msm_cpufreq_voter *v)
+static int kgsl_cpufreq_vote(struct msm_cpufreq_voter *v)
 {
 	struct kgsl_cpufreq_voter *kv =
 			container_of(v, struct kgsl_cpufreq_voter, voter);
@@ -1034,7 +1035,7 @@ static struct kgsl_cpufreq_voter kgsl_cpufreq_voter = {
 	.voter = {
 		.vote = kgsl_cpufreq_vote,
 	},
-};
+};*/
 
 static struct resource kgsl_3d0_resources[] = {
        {
@@ -1087,7 +1088,7 @@ static struct platform_device msm_kgsl_3d0 = {
 	.dev = {
 		.platform_data = &kgsl_3d0_pdata,
 	},
-};*/
+};
 
 #ifdef CONFIG_ES209RA_HEADSET
 struct es209ra_headset_platform_data es209ra_headset_data = {
