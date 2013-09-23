@@ -29,6 +29,7 @@
 #include <mach/socinfo.h>
 
 #include "acpuclock.h"
+#include "cpufreq.h"
 
 #ifdef CONFIG_SMP
 struct cpufreq_work_struct {
@@ -49,6 +50,58 @@ struct cpufreq_suspend_t {
 };
 
 static DEFINE_PER_CPU(struct cpufreq_suspend_t, cpufreq_suspend);
+
+static DEFINE_MUTEX(msm_cpufreq_voter_lock);
+static int msm_cpufreq_vote = MSM_CPUFREQ_IDLE;
+static LIST_HEAD(msm_cpufreq_voters);
+
+#define dprintk(msg...) \
+		cpufreq_debug_printk(CPUFREQ_DEBUG_DRIVER, "cpufreq-msm", msg)
+
+static int msm_cpufreq_check_votes(void)
+{
+	struct msm_cpufreq_voter *voter;
+	int vote = MSM_CPUFREQ_IDLE;
+
+	list_for_each_entry(voter, &msm_cpufreq_voters, item)
+		vote |= voter->vote(voter);
+
+	return vote;
+}
+
+void msm_cpufreq_voter_update(struct msm_cpufreq_voter *v)
+{
+	mutex_lock(&msm_cpufreq_voter_lock);
+	msm_cpufreq_vote = msm_cpufreq_check_votes();
+	mutex_unlock(&msm_cpufreq_voter_lock);
+}
+EXPORT_SYMBOL_GPL(msm_cpufreq_voter_update);
+
+int msm_cpufreq_register_voter(struct msm_cpufreq_voter *v)
+{
+	if (v == NULL || v->vote == NULL)
+		return -EINVAL;
+
+	mutex_lock(&msm_cpufreq_voter_lock);
+	list_add(&v->item, &msm_cpufreq_voters);
+	msm_cpufreq_vote = msm_cpufreq_check_votes();
+	mutex_unlock(&msm_cpufreq_voter_lock);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(msm_cpufreq_register_voter);
+
+void msm_cpufreq_unregister_voter(struct msm_cpufreq_voter *v)
+{
+	if (v == NULL)
+		return;
+
+	mutex_lock(&msm_cpufreq_voter_lock);
+	list_del(&v->item);
+	msm_cpufreq_vote = msm_cpufreq_check_votes();
+	mutex_unlock(&msm_cpufreq_voter_lock);
+}
+EXPORT_SYMBOL_GPL(msm_cpufreq_unregister_voter);
 
 static int override_cpu;
 

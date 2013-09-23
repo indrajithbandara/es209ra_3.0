@@ -111,7 +111,7 @@
 #define MSM_PMEM_ADSP_SIZE	0x02196000
 #define MSM_PMEM_MDP_SIZE	0x01C91000
 #define MSM_AUDIO_SIZE		0x80000
-#define MSM_PMEM_SF_SIZE	0x1700000
+#define MSM_PMEM_SF_SIZE	0x1C91000
 #define PMEM_KERNEL_EBI1_SIZE	0x00028000
 
 #define MSM_SHARED_RAM_PHYS	0x00100000
@@ -137,7 +137,7 @@
 #define MSM_RAM_CONSOLE_SIZE    128 * SZ_1K
 
 #define PMIC_VREG_WLAN_LEVEL	2600
-#define PMIC_VREG_GP6_LEVEL	2850
+#define PMIC_VREG_GP6_LEVEL		2850
 
 #define FPGA_SDCC_STATUS	0x70000280
 
@@ -692,7 +692,7 @@ static int msm_fb_mddi_power_save(int on)
 	int flag_on = !!on;
 	int ret = 0;
 
-	local_irq_enable();
+	//local_irq_enable();
 	if (mddi_power_save_on == flag_on)
 		return ret;
 
@@ -710,7 +710,7 @@ static int msm_fb_mddi_power_save(int on)
 		printk(KERN_ERR "%s: pmic_lp_mode_control failed!\n", __func__);
 
 	return ret;
-	local_irq_disable();
+//	local_irq_disable();
 }
 
 static int msm_fb_mddi_sel_clk(u32 *clk_rate)
@@ -745,21 +745,21 @@ static void tmd_wvga_lcd_power_on(void)
 {
 	int rc = 0;
 
-	local_irq_enable();
+	local_irq_disable();
 
 	rc = vreg_enable(vreg_gp2);
 	if (rc) {
-		local_irq_disable();
+		local_irq_enable();
 		printk(KERN_ERR"%s:vreg_enable(gp2)err. rc=%d\n", __func__, rc);
 		return;
 	}
 	rc = vreg_enable(vreg_mmc);
 	if (rc) {
-		local_irq_disable();
+		local_irq_enable();
 		printk(KERN_ERR"%s:vreg_enable(mmc)err. rc=%d\n", __func__, rc);
 		return;
 	}
-	local_irq_disable();
+	local_irq_enable();
 
 	msleep(50);
 	gpio_set_value(NT35580_GPIO_XRST, 1);
@@ -1014,10 +1014,10 @@ static void __init bt_power_init(void)
 	printk(KERN_DEBUG "Bluetooth power switch initialized\n");
 }
 #else
-#define bt_power_init(x) do {} while (0)*/
+#define bt_power_init(x) do {} while (0)
 #endif
 
-/*struct kgsl_cpufreq_voter {
+struct kgsl_cpufreq_voter {
 	int idle;
 	struct msm_cpufreq_voter voter;
 };
@@ -1035,7 +1035,80 @@ static struct kgsl_cpufreq_voter kgsl_cpufreq_voter = {
 	.voter = {
 		.vote = kgsl_cpufreq_vote,
 	},
-};*/
+};
+
+ 
+
+///////////////////////////////////////////////////////////////////////
+// KGSL (HW3D support)#include <linux/android_pmem.h>
+///////////////////////////////////////////////////////////////////////
+static int es209ra_kgsl_power_rail_mode(int follow_clk)
+{
+	int mode = follow_clk ? 0 : 1;
+	int rail_id = 0;
+	return msm_proc_comm(PCOM_CLK_REGIME_SEC_RAIL_CONTROL, &rail_id, &mode);
+}
+
+static int es209ra_kgsl_power(bool on)
+{
+	int cmd;
+	int rail_id = 0;
+
+    	cmd = on ? PCOM_CLK_REGIME_SEC_RAIL_ENABLE : PCOM_CLK_REGIME_SEC_RAIL_DISABLE;
+    	return msm_proc_comm(cmd, &rail_id, 0);
+}
+
+/* start kgsl-3d0 */
+static struct resource kgsl_3d0_resources[] = {
+	{
+		.name  = KGSL_3D0_REG_MEMORY,
+		.start = 0xA0000000,
+		.end = 0xA001ffff,
+		.flags = IORESOURCE_MEM,
+	},
+	{
+		.name = KGSL_3D0_IRQ,
+		.start = INT_GRAPHICS,
+		.end = INT_GRAPHICS,
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
+static struct kgsl_device_platform_data kgsl_3d0_pdata = {
+	.pwr_data = {
+		.pwrlevel = {
+			{
+				.gpu_freq = 0,
+				.bus_freq = 128000000,
+			},
+		},
+		.init_level = 0,
+		.num_levels = 1,
+		.set_grp_async = NULL,
+		.idle_timeout = HZ/20,
+	},
+	.clk = {
+		.name = {
+			.clk = "grp_clk",
+		},
+	},
+	.imem_clk_name = {
+		.clk = "imem_clk",
+	},
+};
+
+struct platform_device msm_kgsl_3d0 = {
+	.name = "kgsl-3d0",
+	.id = 0,
+	.num_resources = ARRAY_SIZE(kgsl_3d0_resources),
+	.resource = kgsl_3d0_resources,
+	.dev = {
+		.platform_data = &kgsl_3d0_pdata,
+	},
+};
+/* end kgsl-3d0 */
+/*
+
 
 static struct resource kgsl_3d0_resources[] = {
        {
@@ -1088,7 +1161,7 @@ static struct platform_device msm_kgsl_3d0 = {
 	.dev = {
 		.platform_data = &kgsl_3d0_pdata,
 	},
-};
+};*/
 
 #ifdef CONFIG_ES209RA_HEADSET
 struct es209ra_headset_platform_data es209ra_headset_data = {
@@ -1137,53 +1210,9 @@ static struct msm_tsif_platform_data tsif_platform_data = {
 #define TPS65023_MAX_DCDC1	CONFIG_QSD_PMIC_DEFAULT_DCDC1
 #endif
 
-/*static int qsd8x50_tps65023_set_dcdc1(int mVolts)
-{
-	int rc = 0;
-#ifdef CONFIG_QSD_SVS
-	rc = tps65023_set_dcdc1_level(mVolts);*/
-	/* By default the TPS65023 will be initialized to 1.225V.
-	 * So we can safely switch to any frequency within this
-	 * voltage even if the device is not probed/ready.
-	 */
-	/*if (rc == -ENODEV && mVolts <= CONFIG_QSD_PMIC_DEFAULT_DCDC1)
-		rc = 0;
-#else*/
-	/* Disallow frequencies not supported in the default PMIC
-	 * output voltage.
-	 */
-	/*if (mVolts > CONFIG_QSD_PMIC_DEFAULT_DCDC1)
-		rc = -EFAULT;
-#endif
-	return rc;
-}
 
-static struct msm_acpu_clock_platform_data qsd8x50_clock_data = {
-	.acpu_switch_time_us = 20,
-	.max_speed_delta_khz = 256000,
-	.vdd_switch_time_us = 62,
-	.max_vdd = TPS65023_MAX_DCDC1,
-	.acpu_set_vdd = qsd8x50_tps65023_set_dcdc1,
-};*/
-
-/* Driver(s) to be notified upon change in bdata */
-static char *bdata_supplied_to[] = {
-	MAX17040_NAME,
-};
 
 #ifdef CONFIG_MAX17040_FUELGAUGE
-static struct semc_battery_platform_data semc_battery_platform_data = {
-	.supplied_to = bdata_supplied_to,
-	.num_supplicants = ARRAY_SIZE(bdata_supplied_to),
-};
-
-static struct platform_device bdata_driver = {
-	.name = SEMC_BDATA_NAME,
-	.id = -1,
-	.dev = {
-		.platform_data = &semc_battery_platform_data,
-	},
-};
 
 static struct max17040_platform_data max17040_platform_data = {
 	.model_desc = {
@@ -1705,7 +1734,7 @@ static struct platform_device *devices[] __initdata = {
 #ifdef CONFIG_PMIC_TIME
 	&pmic_time_device,
 #endif
-	&bdata_driver,
+//	&bdata_driver,
 	//&msm_batt_device,
 };
 
@@ -2250,7 +2279,6 @@ static void __init es209ra_init(void)
 	set_predecode_repair_cache();
 	printk(KERN_ERR "PVR0F2: %x\n", get_predecode_repair_cache());
 
-	msm_clock_init(&qds8x50_clock_init_data);
 	acpuclk_init(&acpuclk_8x50_soc_data);
 
 	msm_hsusb_pdata.swfi_latency =
@@ -2278,12 +2306,21 @@ static void __init es209ra_init(void)
 	msm_device_i2c_init();
 	msm_qsd_spi_init();
 
+	msm_cpufreq_register_voter(&kgsl_cpufreq_voter.voter);
+
 	i2c_register_board_info(0, msm_i2c_board_info,
 				ARRAY_SIZE(msm_i2c_board_info));
 	spi_register_board_info(msm_spi_board_info,
 				ARRAY_SIZE(msm_spi_board_info));
 	msm_pm_set_platform_data(msm_pm_data, ARRAY_SIZE(msm_pm_data));
-	//kgsl_phys_memory_init();
+
+       /* set the gpu power rail to manual mode so clk en/dis will not
+	* turn off gpu power, and hang it on resume */
+
+	es209ra_kgsl_power_rail_mode(0);
+	es209ra_kgsl_power(false);
+	mdelay(100);
+	es209ra_kgsl_power(true);
 	platform_device_register(&es209ra_keypad_device);
 	msm_mddi_tmd_fwvga_display_device_init();
 }
@@ -2427,6 +2464,7 @@ static void __init es209ra_map_io(void)
 	if (socinfo_init() < 0)
 		printk(KERN_ERR "%s: socinfo_init() failed!\n",
 		       __func__);
+	msm_clock_init(&qds8x50_clock_init_data);
 }
 
 static void __init es209ra_init_early(void)

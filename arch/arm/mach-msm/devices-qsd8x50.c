@@ -995,6 +995,7 @@ void __init msm_camera_register_device(void *res, uint32_t num,
 	msm_register_device(&msm_camera_device, data);
 }
 
+#ifndef CONFIG_MACH_ES209RA
 static struct resource kgsl_3d0_resources[] = {
 	{
 		.name  = KGSL_3D0_REG_MEMORY,
@@ -1009,7 +1010,6 @@ static struct resource kgsl_3d0_resources[] = {
 		.flags = IORESOURCE_IRQ,
 	},
 };
-
 static struct kgsl_device_platform_data kgsl_3d0_pdata = {
 	.pwrlevel = {
 		{
@@ -1033,4 +1033,5 @@ struct platform_device msm_kgsl_3d0 = {
 		.platform_data = &kgsl_3d0_pdata,
 	},
 };
+#endif//CONFIG_MACH_ES209RA
 
